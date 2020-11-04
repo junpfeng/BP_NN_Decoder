@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 
 # Generate some random bits, encode it to valid codewords and simulate transmission
 def encode_and_transmission(G_matrix, SNR, batch_size, noise_io, rng=0):
@@ -19,8 +20,22 @@ def encode_and_transmission(G_matrix, SNR, batch_size, noise_io, rng=0):
     ch_noise = ch_noise_normalize * ch_noise_sigma  # 利用公式 D(c*x) = c^2*D(x) 来改变噪声的方差
     y_receive = s_mod + ch_noise  # 模拟接收信号
     LLR = y_receive * 2.0 / (ch_noise_sigma * ch_noise_sigma)  # 计算接收信号的对数似然比
-    return x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR  # s_mod 是经 BPSK 调制后的信号(0，1)-> (-1,1)，在调制完成后，还做了一个翻转
+    # ----------------- 重新使用 tensor 的方式，重构输入码字 ----------------------
+    ii, jj = u_coded_bits.shape
+    u_coded_bits_tensor = tf.placeholder(dtype=tf.float32, shape=[ii, jj], name="u_coded_bits_tensor")  # 整个BP网络的输入
+    SNR_tensor = tf.placeholder(dtype=tf.float32, shape=[1], name="SNR_tensor")  # 整个BP网络的输入
+    # SNR_tensor = tf.constant(SNR, dtype=tf.float32)
+    s_mod_tensor = tf.add(tf.multiply(u_coded_bits_tensor, -2), 1)
+    ch_noise_sigma_tensor = tf.square(tf.truediv(tf.truediv([1.0], tf.pow(10.0, tf.truediv(SNR_tensor, [10.0]))), [2.0]))
+    ch_noise_normalize_tensor = tf.constant(ch_noise_normalize, dtype=tf.float32)
+    ch_noise_tensor = tf.multiply(ch_noise_normalize_tensor, ch_noise_sigma_tensor)
+    y_receive_tensor = tf.add(s_mod_tensor, ch_noise_tensor)
+    LLR_tensor = tf.truediv(tf.multiply(y_receive_tensor, 2.0), tf.multiply(ch_noise_sigma_tensor, ch_noise_sigma_tensor))
+    # ---------------------------------------------------------------------------
+    return x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR, SNR, u_coded_bits_tensor, LLR_tensor, SNR_tensor, ch_noise_normalize
+    # s_mod 是经 BPSK 调制后的信号(0，1)-> (-1,1)，在调制完成后，还做了一个翻转
     # x_bits 随机生成的发送端码元，u_coded_bits 对x_bits做纠错编码后的码元，s_mod 对u_coded_bits做BPSK调制后的码元，ch_noise 信道噪声，y_recive 接收端接收到的信号，LLR 对数似然比
+    # u_coded_bits 是经过构造函数之后的码字，s_mod 是经过BPSK调制的码字，LLR是对数似然比输入，第 2 个、第 3 个和第 6 个。
 class LDPC:
     def __init__(self, N, K, file_G, file_H):
         self.N = N

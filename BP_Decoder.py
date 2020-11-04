@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import os
 
 
 class GetMatrixForBPNet:
@@ -86,7 +87,15 @@ class BP_NetDecoder:
         self.num_all_edges = np.size(loc_nzero_row[1, :])  # 获取非零元素的数量，同时也被称为edge，横坐标或者纵坐标的数量即edge数量
         gm1 = GetMatrixForBPNet(H[:, :], loc_nzero_row)  #
         self.H_sumC_to_V = gm1.get_Matrix_CV()  # 返回：C->V 的转换矩阵
+        # ---------改为 tf.Variable ----------
+        self.H_sumC_to_V = tf.Variable(self.H_sumC_to_V, dtype=tf.float32)
+        # -----------------------------------
         self.H_x_to_xe0, self.H_sumV_to_C, self.H_xe_v_sumc_to_y = gm1.get_Matrix_VC()  # 返回：初始化的变量节点、V->C 的转换矩阵、输出层的转换矩阵
+        # ---------改为 tf.Variable ----------
+        self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32)
+        self.H_sumV_to_C = tf.Variable(self.H_sumV_to_C, dtype=tf.float32)
+        self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32)
+        # ------------------------------------
         self.batch_size = batch_size
         self.llr_placeholder = tf.placeholder(tf.float32, [batch_size, self.v_node_num])
         # -----------新增变量------------
@@ -112,9 +121,9 @@ class BP_NetDecoder:
         # -------------------------------------------------------------
         self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_placeholder))  # transpose the llr matrix to adapt to the matrix operation in BP net decoder.
 
-        init = tf.global_variables_initializer()
         self.sess = tf.Session()  # open a session
         print('Open a tf session!')
+        init = tf.global_variables_initializer()
         self.sess.run(init)
 
     def __del__(self):
@@ -151,6 +160,7 @@ class BP_NetDecoder:
         return xe_v_sumc, xe_c_sumv  # xe_v_sumc 是输出层，xe_c_sumv 是这一轮BP的输出，下一轮的输入
 
     def build_network(self):  # build the network for one BP iteration
+        # 还需要构建一段由 u_coded_bits 和 SNR 到 llr 的网络。
         # BP initialization
         llr_into_bp_net = tf.Variable(np.ones([self.v_node_num, self.batch_size], dtype=np.float32))  # 建立了一个矩阵变量（576 * 5000)，576 是码元，5000是每次5000个码元为一个batch
         xe_0 = tf.matmul(self.H_x_to_xe0, llr_into_bp_net)  # 横向edge初始化(H_x_to_xe0:shape=(2040, 576), llr_into_bp_net:shape=(576, 5000) => (2040, 5000)
@@ -158,8 +168,12 @@ class BP_NetDecoder:
         xe_v2c_pre_iter_assign = xe_v2c_pre_iter.assign(xe_0)  # 将 xe_0 赋值给 ve_v2c_pre_iter_assign
 
         # one iteration
-        H_sumC_to_V = tf.constant(self.H_sumC_to_V, dtype=tf.float32)  # shape=(2040, 2040)
-        H_sumV_to_C = tf.constant(self.H_sumV_to_C, dtype=tf.float32)  # shape=(2040, 2040)
+        # H_sumC_to_V = tf.constant(self.H_sumC_to_V, dtype=tf.float32)  # shape=(2040, 2040)
+        # H_sumV_to_C = tf.constant(self.H_sumV_to_C, dtype=tf.float32)  # shape=(2040, 2040)
+        # 上面两个变量改成下面的这两句
+        H_sumC_to_V = self.H_sumC_to_V
+        H_sumV_to_C = self.H_sumV_to_C
+        # --------------------------
         xe_v_sumc, xe_c_sumv = self.one_bp_iteration(xe_v2c_pre_iter, H_sumC_to_V, H_sumV_to_C, xe_0)  # (2040, 5000), (2040, 2040), (2040, 2040), (2040, 5000)
         # xe_v_sumc 是纵向排列的edge，xe_c_sumv 是横向排列的edge
         # 横向排列的edge正好是每轮BP的输出，而纵向排列的BP则是可以作为输出层的前一个数据层
@@ -168,8 +182,8 @@ class BP_NetDecoder:
 
         # get the final marginal probability and decoded results
         bp_out_llr = tf.add(llr_into_bp_net, tf.matmul(self.H_xe_v_sumc_to_y, xe_v_sumc))  # H_xe_sumc_to_y 是输出层的转换矩阵，xe_v_sumc 是纵向排列的edge
-        sigmoid_out = tf.sigmoid(bp_out_llr)
-        dec_out = tf.transpose(tf.floordiv(1-tf.to_int32(tf.sign(bp_out_llr)), 2))
+        sigmoid_out = tf.sigmoid(tf.transpose(bp_out_llr))
+        dec_out = tf.transpose(tf.floordiv(1-tf.to_int32(tf.sign(bp_out_llr)), 2), name="output_node_tanspose")
 
         return llr_into_bp_net, xe_0, xe_v2c_pre_iter_assign, start_next_iteration, dec_out, sigmoid_out
 
@@ -179,6 +193,11 @@ class BP_NetDecoder:
             llr_in = np.append(llr_in, np.zeros([self.batch_size-real_batch_size, num_v_node], dtype=np.float32), 0)  # re-create an array and will not influence the value in
             # original llr array.
         self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})  # llr应该只是数据层
+
+        # 每个作用域内 tensor 都需要初始化一下
+        # init = tf.global_variables_initializer()
+        # self.sess.run(init)
+
         # 尝试保存网络
         # saver = tf.train.Saver()
         # save_dir = "model/bp_model/"
@@ -187,21 +206,97 @@ class BP_NetDecoder:
         for iter in range(0, bp_iter_num-1):
             self.sess.run(self.start_next_iteration)  # run start_next_iteration时表示当前一轮BP的输出
         y_dec = self.sess.run(self.dec_out)  # dec_out 则是最终输出层
-        sigmoid_out = self.sess.run(self.sigmoid_out)
-
-        # saver.save(self.sess, save_dir + "bp_model.cpkt")
+        # sigmoid_out = self.sess.run(self.sigmoid_out)
+        # saver.save(self.sess, save_dir + "bp_model.ckpt")
 
         if real_batch_size != self.batch_size:
             y_dec = y_dec[0:real_batch_size, :]
 
         return y_dec
 
-    def train_dp_network(self, x_bit):
+    def train_decode_network(self, bp_iter_num, SNRset, batch_size, ch_noise_normalize, linear_code):
         """
-        损失函数：loss = -tf.reduce_sum(y*ln(out) + (1-y)*ln(1 - out)，其中y是真实值（0或者1），a是经过sigmoid处理的介于（0，1）之间的值。
+        神经网络的：
+        输入 u_coded_bits 和 SNR
+        输出 LLR
+        :param llr_in: 这里 LLR 是和 u_coded_bits 相反的 
+        :param bp_iter_num: 
+        :param u_coded_bits: 处理方法是将 u_coded_bits 中的 0 和 1 翻过来 
         :return: 
         """
+        # 尝试保存网络
+        saver = tf.train.Saver()
+        save_dir = "model/bp_model/"
+        G_matrix = linear_code.G_matrix  # 用于产生 u_coded_bits 样本的生成矩阵
+        rng = np.random.RandomState(0)  # 随机数对象
+        # u_coded_bits = 1 - u_coded_bits  # 翻转 u_coded_bits 以和 llr_in 相匹配
+        # u_coded_bits = tf.Variable(u_coded_bits, dtype=tf.float32, name="u_coded_bits")
 
-        loss = -tf.reduce_sum(x_bit*tf.log(self.sigmoid_out) + (1-x_bit)*tf.log(1-self.sigmoid_out))
-        self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})
-        pass
+        # 先根据 SNR 和 u_coded_bits 求出 llr_in，这样子就可以使用下面的代码了
+        _, N = G_matrix.shape  # 传入一个u_coded_bits，用于分析其shape
+        u_coded_bits_tensor = tf.placeholder(dtype=tf.float32, shape=[batch_size, N], name="u_coded_bits_tensor")  # 整个BP网络的输入
+        SNR_tensor = tf.placeholder(dtype=tf.float32, shape=[1], name="SNR_tensor")  # 整个BP网络的输入
+        s_mod_tensor = tf.add(tf.multiply(u_coded_bits_tensor, -2), 1)  # BPSK 调制
+        ch_noise_sigma_tensor = tf.square(
+            tf.truediv(tf.truediv([1.0], tf.pow(10.0, tf.truediv(SNR_tensor, [10.0]))), [2.0]))  # 计算噪声的标准差
+        ch_noise_normalize_tensor = tf.constant(ch_noise_normalize, dtype=tf.float32)  # 噪声矩阵
+        ch_noise_tensor = tf.multiply(ch_noise_normalize_tensor, ch_noise_sigma_tensor)  # 生成真正的噪声
+        y_receive_tensor = tf.add(s_mod_tensor, ch_noise_tensor)  # 模拟高斯白噪声下的接收信号
+        LLR_tensor = tf.truediv(tf.multiply(y_receive_tensor, 2.0),
+                                tf.multiply(ch_noise_sigma_tensor, ch_noise_sigma_tensor), name="LLR_tensor")  # 计算接收信号的对数似然比
+        # ------------------------------------------------------------------
+        # llr_in = self.sess.run(LLR_tensor, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})
+        # 每个作用域内 tensor 都需要初始化一下，但是一旦这样子初始化后，就会将之前训练的结果全部清楚。。。，所以最好放到一个
+        # real_batch_size, num_v_node = np.shape(llr_in)  # llr_in 就是BP译码的初始化
+        # if real_batch_size != self.batch_size:  # padding zeros，目前还没进入这个选项，先忽略，之后改成tensor模式
+        #     llr_in = np.append(llr_in, np.zeros([self.batch_size-real_batch_size, num_v_node], dtype=np.float32), 0)  # re-create an array and will not influence the value in
+            # original llr array. 将 np.zeros 这部分放到llr_in 后面几行（补零操作），只改变行，不改变列。
+            # 可以改成下面的 tensor 形式
+            # llr_in_tensor = tf.concat([LLR_tensor, tf.Variable(np.zeros([self.batch_size-real_batch_size, num_v_node], dtype=np.float32))], axis=0)
+        # self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})  # llr应该只是数据层
+
+        self.sess.run(self.xe_v2c_pre_iter_assign)  #
+        for iter in range(0, bp_iter_num-1):  # 根据BP迭代的次数，搭建BP网络
+            self.sess.run(self.start_next_iteration)  # run start_next_iteration时表示当前一轮BP的输出
+        # y_dec = self.sess.run(self.dec_out)  # dec_out 则是最终输出层
+        # sigmoid_out = self.sess.run(self.sigmoid_out) #
+
+        cross_entropy = -tf.reduce_sum(u_coded_bits_tensor * tf.log(self.sigmoid_out))  #　* 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
+        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+
+        tf.train.start_queue_runners(sess=self.sess)
+        # # 每个作用域内 tensor 都需要初始化一下，但是一旦这样子初始化后，就会将之前训练的结果全部清楚。。。，所以最好放到一个
+        # init = tf.global_variables_initializer()
+        # self.sess.run(init)
+        # ------------------ 如果调制 init 的位置 --------？？？？ -----------
+        init = tf.global_variables_initializer()
+        self.sess.run(init)
+        # ------------- 恢复保存的神经网络 ------------------
+        if os.path.exists(save_dir + "bp_model.ckpt.meta"):
+            saver.restore(self.sess, save_dir + "bp_model.ckpt")
+        # --------------------------------------------------
+        for SNR in SNRset:
+            for i in range(1500):  # 20000
+                # 需要一个更新输入数据的过程
+                u_coded_bits = self.generate_inputs(G_matrix, batch_size, rng)
+                # llr_in = self.sess.run(LLR_tensor, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})
+                # self.llr_assign = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})  # llr应该只是数据层
+                # train_step.run(feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits}, session=self.sess)
+                self.sess.run(train_step, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})
+        # ------------- 保存训练好的神经网络 -----------------
+        saver.save(self.sess, save_dir + "bp_model.ckpt")
+        # ---------------------------------------------------
+        # if real_batch_size != self.batch_size:
+        #     y_dec = y_dec[0:real_batch_size, :]
+        #
+        # return y_dec
+
+    def generate_inputs(self, G_matrix, batch_size, rng):
+        K, N = np.shape(G_matrix)
+        if rng == 0:
+            x_bits = np.random.randint(0, 2, size=(batch_size, K))
+        else:
+            x_bits = rng.randint(0, 2, size=(batch_size, K))  # 随机数种子rng用于生产随机的输入码字
+        # coding
+        u_coded_bits = np.mod(np.matmul(x_bits, G_matrix), 2)  # G_matrix
+        return u_coded_bits

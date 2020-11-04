@@ -53,4 +53,5 @@ elif top_config.function == 'Simulation':
     #     ibd.analyze_residual_noise(code, top_config, net_config, simutimes_for_anal_res_power, batch_size)
 
     simutimes_range = np.array([np.ceil(1e7 / float(top_config.K_code * batch_size)) * batch_size, np.ceil(1e8 / float(top_config.K_code * batch_size)) * batch_size], np.int32)
-    ibd.simulation_colored_noise(code, top_config, net_config, simutimes_range, 1000, batch_size)
+    # ibd.simulation_colored_noise(code, top_config, net_config, simutimes_range, 1000, batch_size)
+    ibd.train_bp_network(code, top_config, net_config, simutimes_range, 1000, batch_size)

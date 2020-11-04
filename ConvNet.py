@@ -182,7 +182,7 @@ class ConvNet:
         # normality test
         if self.train_config.normality_test_enabled:
             # self.train_config.training_minibatch_size = 1400
-            training_loss =  self.calc_normality_test(y_label - y_out, self.train_config.training_minibatch_size, 1)
+            training_loss = self.calc_normality_test(y_label - y_out, self.train_config.training_minibatch_size, 1)
             orig_loss_for_test = self.calc_normality_test(y_label - x_in, self.train_config.test_minibatch_size, 1)
             test_loss = self.calc_normality_test(y_label - y_out, self.train_config.test_minibatch_size, 1)
             if self.train_config.normality_lambda != np.inf:

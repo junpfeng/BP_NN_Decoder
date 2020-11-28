@@ -50,7 +50,7 @@ class ConvNet:
                 self.best_bias[layer] = tf.Variable(tf.ones([out_channels], tf.float32), dtype=tf.float32)
                 self.assign_best_conv_filter[layer] = self.best_conv_filter[layer].assign(self.conv_filter[layer])
                 self.assign_best_bias[layer] = self.best_bias[layer].assign(self.bias[layer])
-            else:
+            else:  # 默认进入这个
                 # just build tensors for testing and their values will be loaded later.
                 self.conv_filter[layer] = tf.Variable(tf.random_normal([self.net_config.filter_sizes[layer], 1, in_channels, out_channels], 0, 1, tf.float32), dtype=tf.float32,
                                                       name=self.conv_filter_name[layer])
@@ -190,7 +190,7 @@ class ConvNet:
                 orig_loss_for_test = tf.reduce_mean(tf.square(y_label - x_in)) + orig_loss_for_test * self.train_config.normality_lambda
                 test_loss = tf.reduce_mean(tf.square(y_label - y_out)) + test_loss * self.train_config.normality_lambda
         else:
-            training_loss = tf.reduce_mean(tf.square(y_out - y_label))
+            training_loss = tf.reduce_mean(tf.square(y_out - y_label))  # tf.square(x)是求平方，tf.reduce_mean(x)是求平均
             orig_loss_for_test = tf.reduce_mean(tf.square(y_label - x_in))
             test_loss = training_loss
 

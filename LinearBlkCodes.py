@@ -32,7 +32,7 @@ def encode_and_transmission(G_matrix, SNR, batch_size, noise_io, rng=0):
     y_receive_tensor = tf.add(s_mod_tensor, ch_noise_tensor)
     LLR_tensor = tf.truediv(tf.multiply(y_receive_tensor, 2.0), tf.multiply(ch_noise_sigma_tensor, ch_noise_sigma_tensor))
     # ---------------------------------------------------------------------------
-    return x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR, SNR, u_coded_bits_tensor, LLR_tensor, SNR_tensor, ch_noise_normalize
+    return x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR#, SNR, u_coded_bits_tensor, LLR_tensor, SNR_tensor, ch_noise_normalize
     # s_mod 是经 BPSK 调制后的信号(0，1)-> (-1,1)，在调制完成后，还做了一个翻转
     # x_bits 随机生成的发送端码元，u_coded_bits 对x_bits做纠错编码后的码元，s_mod 对u_coded_bits做BPSK调制后的码元，ch_noise 信道噪声，y_recive 接收端接收到的信号，LLR 对数似然比
     # u_coded_bits 是经过构造函数之后的码字，s_mod 是经过BPSK调制的码字，LLR是对数似然比输入，第 2 个、第 3 个和第 6 个。

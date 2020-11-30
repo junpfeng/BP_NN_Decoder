@@ -80,9 +80,9 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         exit(0)
     bp_decoder = BP_Decoder.BP_NetDecoder(H_matrix, batch_size)
 
-    saver = tf.train.Saver()
-    save_dir = "model/bp_model/"
-    saver.restore(bp_decoder.sess, save_dir + "bp_model.ckpt")
+    # saver = tf.train.Saver()
+    # save_dir = "model/bp_model/"
+    # saver.restore(bp_decoder.sess, save_dir + "bp_model.ckpt")
 
     ## build denoising network
     conv_net = {}

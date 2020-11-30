@@ -103,14 +103,16 @@ class BP_NetDecoder:
         # ------------------------------------
         self.batch_size = batch_size
         self.llr_placeholder = tf.placeholder(tf.float32, [batch_size, self.v_node_num], name="llr_placeholder")
+        self.labels = tf.placeholder(tf.float32, [batch_size, self.v_node_num], name="label_placeholder")
         # -----------新增变量------------
         self.x_bit_placeholder = tf.placeholder(tf.int8, [batch_size, self.v_node_num])
         self.train_bp_network = True
         # ---------- BP 网络的参数 -------------
         self.V_to_C_params = {}
         self.C_to_V_params = {}
-        self.BP_layers = 2
-        # ---------- 构建稀疏转换 --------------
+        self.BP_layers = 5
+        self.xe_v_sumc = {}
+        # ---------- 构建稀疏转换 -------------
         # --------- 将参数放到数组中 ----------
         i, j = np.nonzero(self.H_sumC_to_V)
         indices = []
@@ -119,10 +121,9 @@ class BP_NetDecoder:
             tmp[0] = i[idx]
             tmp[1] = j[idx]
             indices.append(tmp)
-        values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
-
         for layer in range(self.BP_layers):
-            self.C_to_V_params[layer] = tf.SparseTensor(indices=indices, values=tf.identity(values)
+            values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
+            self.C_to_V_params[layer] = tf.SparseTensor(indices=indices, values=values
                                                         , dense_shape=self.H_sumC_to_V.shape)
 
         i, j = np.nonzero(self.H_sumV_to_C)
@@ -132,35 +133,25 @@ class BP_NetDecoder:
             tmp[0] = i[idx]
             tmp[1] = j[idx]
             indices.append(tmp)
-        values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
-
         for layer in range(self.BP_layers):
-            self.V_to_C_params[layer] = tf.SparseTensor(indices=indices, values=tf.identity(values)
+            values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
+            self.V_to_C_params[layer] = tf.SparseTensor(indices=indices, values=values
                                                         , dense_shape=self.H_sumV_to_C.shape)
 
-        # ---------改为 tf.Variable ----------
-        # self.H_sumC_to_V = tf.Variable(self.H_sumC_to_V, dtype=tf.float32)
-        # -----------------------------------
-        # ------- 本来在最下面一行 -------------
-        # init = tf.global_variables_initializer()
-        # self.sess = tf.Session()  # open a session
-        # print('Open a tf session!')
-        # self.sess.run(init)
-        # -------------------------------------
         # --------------------不带训练参数的BP译码网络------------------
         if not self.train_bp_network:
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out = self.build_network()
         # -----------------带训练参数的BP译码网络的参数矩阵--------------
         else:  # 之后考虑为每个 H_sumC_to_V 和 H_sumV_to_C 单独进行变量随机化
-            # ii, jj = np.shape(self.H_sumC_to_V)
-            # self.H_sum_param = tf.Variable(tf.random_normal([ii._value, jj._value], mean=1, stddev=0.1, dtype=tf.float32), dtype=tf.float32, name="H_param")
-            # self.H_sumV_to_C = tf.multiply(self.H_sumV_to_C, self.H_sum_param)
-            # self.H_sumC_to_V = tf.multiply(self.H_sumC_to_V, self.H_sum_param)
-            self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out = self.build_trained_bp_network()
+            self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out, self.bp_out_llr = self.build_trained_bp_network()
         # -------------------------------------------------------------
         # -------------------------------------------------------------
         self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_placeholder))  # transpose the llr matrix to adapt to the matrix operation in BP net decoder
         # self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_into_bp_net))  # transpose the llr matrix to adapt to the matrix operation in BP net decoder.
+
+        # self.cross_entropy = -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out), 1)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
+        self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.sigmoid_out)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
+        self.train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entropy)
 
         self.sess = tf.Session()  # open a session
         # ---- tmp print --------------
@@ -202,6 +193,10 @@ class BP_NetDecoder:
         xe_c_sumv = tf.add(xe_0, tf.matmul(H_sumV_to_C, xe_v_sumc))
         return xe_v_sumc, xe_c_sumv  # xe_v_sumc 是输出层，xe_c_sumv 是这一轮BP的输出，下一轮的输入
 
+    def H(self, x):
+        ex = tf.exp(x)
+        return tf.log(tf.truediv(1 + ex, 1 - ex))
+
     def multiple_bp_iteration(self, xe_v2c_pre_iter, xe_0):
         """
         :param xe_v2c_pre_iter: (2040, 5000) ,xe_v2c_pre_iter 是上一轮的变量节点，即非初始化的变量节点
@@ -215,6 +210,13 @@ class BP_NetDecoder:
             if 0 != layer:
                 xe_v2c_pre_iter = xe_c_sumv
 
+            # xe_vml = tf.exp(xe_v2c_pre_iter)
+            # xe_vml_ln = tf.log(tf.truediv(tf.add(xe_vml, - 1), tf.add(xe_vml, 1)))
+            # xe_vml_ln_sum = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], xe_vml_ln)
+            # xe_v_sumc = self.H(xe_vml_ln_sum)
+            # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.V_to_C_params[layer], xe_v_sumc))
+
+        # ----------------------------
             xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
             xe_tanh = tf.to_float(xe_tanh)
             xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
@@ -226,74 +228,6 @@ class BP_NetDecoder:
             xe_pd_modified = tf.add(xe_product, xe_product_temp)
             xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
             xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.V_to_C_params[layer], xe_v_sumc))
-        # # ------------- 一轮 bp 迭代 -----------------------------
-        # xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        # xe_tanh = tf.to_float(xe_tanh)
-        # xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        # xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.w_C_to_V1, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        # xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.w_C_to_V1, tf.log(1e-8 + tf.abs(xe_tanh)))
-        # xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        # xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        # xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        # xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        # xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.w_V_to_C1, xe_v_sumc))
-        # # --------------- 二轮 dp 迭代 ---------------------------
-        # xe_v2c_pre_iter = xe_c_sumv
-        # xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        # xe_tanh = tf.to_float(xe_tanh)
-        # xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        # xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.w_C_to_V2, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]),
-        #                                                     [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        # xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.w_C_to_V2, tf.log(1e-8 + tf.abs(xe_tanh)))
-        # xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        # xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        # xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        # xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        # xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.w_V_to_C2, xe_v_sumc))
-        # # --------------- 三轮 dp 迭代 ---------------------------
-        # xe_v2c_pre_iter = xe_c_sumv
-        # xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        # xe_tanh = tf.to_float(xe_tanh)
-        # xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        # xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.w_C_to_V3, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]),
-        #                                                     [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        # xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.w_C_to_V3, tf.log(1e-8 + tf.abs(xe_tanh)))
-        # xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        # xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        # xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        # xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        # xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.w_V_to_C3, xe_v_sumc))
-        # # --------------- 四轮 dp 迭代 ---------------------------
-        # xe_v2c_pre_iter = xe_c_sumv
-        # xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        # xe_tanh = tf.to_float(xe_tanh)
-        # xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        # xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.w_C_to_V4, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]),
-        #                                                     [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        # xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.w_C_to_V4, tf.log(1e-8 + tf.abs(xe_tanh)))
-        # xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        # xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        # xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        # xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        # xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.w_V_to_C4, xe_v_sumc))
-        # # --------------- 五轮 dp 迭代 ---------------------------
-        # xe_v2c_pre_iter = xe_c_sumv
-        # xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        # xe_tanh = tf.to_float(xe_tanh)
-        # xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        # xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.w_C_to_V5, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]),
-        #                                                     [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        # xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.w_C_to_V5, tf.log(1e-8 + tf.abs(xe_tanh)))
-        # xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        # xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        # xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        # xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        # xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.w_V_to_C5, xe_v_sumc))
 
         return xe_v_sumc, xe_c_sumv  # xe_v_sumc 是输出层，xe_c_sumv 是这一轮BP的输出，下一轮的输入
 
@@ -335,26 +269,20 @@ class BP_NetDecoder:
         xe_v2c_pre_iter = tf.Variable(np.ones([self.num_all_edges, self.batch_size], dtype=np.float32))  # the v->c messages of the previous iteration, shape=(2040, 5000)
         xe_v2c_pre_iter_assign = xe_v2c_pre_iter.assign(xe_0)  # 将 xe_0 赋值给 ve_v2c_pre_iter_assign
 
-        # one iteration
-        # H_sumC_to_V = tf.constant(self.H_sumC_to_V, dtype=tf.float32)  # shape=(2040, 2040)
-        # H_sumV_to_C = tf.constant(self.H_sumV_to_C, dtype=tf.float32)  # shape=(2040, 2040)
-        # 上面两个变量改成下面的这两句，在不训练的情况下，变量和常量没有影响。
-        # H_sumC_to_V = self.H_sumC_to_V
-        # H_sumV_to_C = self.H_sumV_to_C
-        # --------------------------
         xe_v_sumc, xe_c_sumv = self.multiple_bp_iteration(xe_v2c_pre_iter, xe_0)  # (2040, 5000), (2040, 2040), (2040, 2040), (2040, 5000)
+        self.xe_v_sumc = xe_v_sumc
         # xe_v_sumc 是纵向排列的edge，xe_c_sumv 是横向排列的edge
         # 横向排列的edge正好是每轮BP的输出，而纵向排列的BP则是可以作为输出层的前一个数据层
         # start the next iteration
-        start_next_iteration = xe_v2c_pre_iter.assign(xe_c_sumv)
-
+        # start_next_iteration = xe_v2c_pre_iter.assign(xe_c_sumv)
+        start_next_iteration = 0
         # get the final marginal probability and decoded results
-        bp_out_llr = tf.add(llr_into_bp_net, tf.matmul(self.H_xe_v_sumc_to_y, xe_v_sumc))  # H_xe_sumc_to_y 是输出层的转换矩阵，xe_v_sumc 是纵向排列的edge
-        # sigmoid_out = tf.sigmoid(tf.transpose(bp_out_llr))
-        sigmoid_out = tf.sigmoid(bp_out_llr)
+        bp_out_llr = tf.add(llr_into_bp_net, tf.matmul(self.H_xe_v_sumc_to_y, xe_v_sumc))  # H_xe_sumc_to_y 是输出层的转换矩阵，不需要训练，xe_v_sumc 是纵向排列的edge
+        sigmoid_out = tf.sigmoid(tf.transpose(bp_out_llr))
+        # sigmoid_out = tf.sigmoid(bp_out_llr)
         dec_out = tf.transpose(tf.floordiv(1-tf.to_int32(tf.sign(bp_out_llr)), 2), name="output_node_tanspose")
 
-        return llr_into_bp_net, xe_0, xe_v2c_pre_iter_assign, start_next_iteration, dec_out, sigmoid_out
+        return llr_into_bp_net, xe_0, xe_v2c_pre_iter_assign, start_next_iteration, dec_out, sigmoid_out, bp_out_llr
 
     '''
     python -m tensorflow.python.tools.freeze_graph --input_checkpoint=model/bp_model/bp_model.ckpt --input_binary=false --output_graph=model/bp_model/frozen.pb --input_graph=model/bp_model/bp_model.pbtxt --output_node_names=output_node_tanspose
@@ -387,7 +315,7 @@ class BP_NetDecoder:
 
         return y_dec
 
-    # 不可训练的BPdecode
+    # # 不可训练的BPdecode
     # def decode(self, llr_in, bp_iter_num):
     #     real_batch_size, num_v_node = np.shape(llr_in)
     #     if real_batch_size != self.batch_size:  # padding zeros
@@ -419,100 +347,29 @@ class BP_NetDecoder:
         saver = tf.train.Saver()
         save_dir = "model/bp_model/"
         G_matrix = linear_code.G_matrix  # 用于产生 u_coded_bits 样本的生成矩阵
-        rng = np.random.RandomState(0)  # 随机数对象
-        # u_coded_bits = 1 - u_coded_bits  # 翻转 u_coded_bits 以和 llr_in 相匹配
-        # u_coded_bits = tf.Variable(u_coded_bits, dtype=tf.float32, name="u_coded_bits")
 
-        # 先根据 SNR 和 u_coded_bits 求出 llr_in，这样子就可以使用下面的代码了
-        _, N = G_matrix.shape  # 传入一个u_coded_bits，用于分析其shape
-        u_coded_bits_tensor = tf.placeholder(dtype=tf.float32, shape=[batch_size, N], name="u_coded_bits_tensor")  # 整个BP网络的输入
-        SNR_tensor = tf.placeholder(dtype=tf.float32, shape=[1], name="SNR_tensor")  # 整个BP网络的输入
-        s_mod_tensor = tf.add(tf.multiply(u_coded_bits_tensor, -2), 1)  # BPSK 调制
-        ch_noise_sigma_tensor = tf.square(
-            tf.truediv(tf.truediv([1.0], tf.pow(10.0, tf.truediv(SNR_tensor, [10.0]))), [2.0]))  # 计算噪声的标准差
-        ch_noise_normalize_tensor = tf.constant(ch_noise_normalize, dtype=tf.float32)  # 噪声矩阵
-        ch_noise_tensor = tf.multiply(ch_noise_normalize_tensor, ch_noise_sigma_tensor)  # 生成真正的噪声
-        y_receive_tensor = tf.add(s_mod_tensor, ch_noise_tensor)  # 模拟高斯白噪声下的接收信号
-        LLR_tensor = tf.truediv(tf.multiply(y_receive_tensor, 2.0),
-                                tf.multiply(ch_noise_sigma_tensor, ch_noise_sigma_tensor), name="LLR_tensor")  # 计算接收信号的对数似然比
-        # ------------------------------------------------------------------
-        # llr_in = self.sess.run(LLR_tensor, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})
-        # 每个作用域内 tensor 都需要初始化一下，但是一旦这样子初始化后，就会将之前训练的结果全部清楚。。。，所以最好放到一个
-        # real_batch_size, num_v_node = np.shape(llr_in)  # llr_in 就是BP译码的初始化
-        # if real_batch_size != self.batch_size:  # padding zeros，目前还没进入这个选项，先忽略，之后改成tensor模式
-        #     llr_in = np.append(llr_in, np.zeros([self.batch_size-real_batch_size, num_v_node], dtype=np.float32), 0)  # re-create an array and will not influence the value in
-            # original llr array. 将 np.zeros 这部分放到llr_in 后面几行（补零操作），只改变行，不改变列。
-            # 可以改成下面的 tensor 形式
-            # llr_in_tensor = tf.concat([LLR_tensor, tf.Variable(np.zeros([self.batch_size-real_batch_size, num_v_node], dtype=np.float32))], axis=0)
-        # self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})  # llr应该只是数据层
-
-        # self.sess.run(self.xe_v2c_pre_iter_assign)  #
-        # for iter in range(0, bp_iter_num-1):  # 根据BP迭代的次数，搭建BP网络
-        #     self.sess.run(self.start_next_iteration)  # run start_next_iteration时表示当前一轮BP的输出
-        # y_dec = self.sess.run(self.dec_out)  # dec_out 则是最终输出层
-        # sigmoid_out = self.sess.run(self.sigmoid_out) #
-
-        # cross_entropy = -tf.reduce_sum(u_coded_bits_tensor * tf.log(self.sigmoid_out))  #　* 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
-        # cross_entropy = -tf.reduce_sum(tf.transpose(self.llr_into_bp_net) * tf.log(self.sigmoid_out))  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
-        # train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-
-        tf.train.start_queue_runners(sess=self.sess)
-        # # 每个作用域内 tensor 都需要初始化一下，但是一旦这样子初始化后，就会将之前训练的结果全部清楚。。。，所以最好放到一个
-        # init = tf.global_variables_initializer()
-        # self.sess.run(init)
-        # ------------------ 如果调制 init 的位置 --------？？？？ -----------
-
-
-        cross_entropy = -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out))  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
-        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-
-        init = tf.global_variables_initializer()
-        self.sess.run(init)
-        # ------------- 恢复保存的神经网络 ------------------
-        # if os.path.exists(save_dir + "bp_model.ckpt.meta"):
-        #     saver.restore(self.sess, save_dir + "bp_model.ckpt")
-        # --------------------------------------------------
-        tmp = 0
         for SNR in SNRset:
             real_batch_size = batch_size
-            for i in range(1):  # 20000
+            for i in range(50):  # 20000
                 # 需要一个更新输入数据的过程
-                # u_coded_bits = self.generate_inputs(G_matrix, batch_size, rng)  # 使用自带的数据生成函数
-                x_bits, _, s_mod, channel_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
-                # llr_in = self.sess.run(LLR_tensor, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})
-                # self.llr_assign = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: llr_in})  # llr应该只是数据层
-                # train_step.run(feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits}, session=self.sess)
-                # self.sess.run(train_step, feed_dict={SNR_tensor: [SNR], u_coded_bits_tensor: u_coded_bits})   # 重新修改网络的输入为 llr_in
+                x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
                 # --------------------------------------------------------------------------------------------
-                self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: LLR})
-                # self.sess.run(self.xe_v2c_pre_iter_assign)  #
-                # for iter in range(0, bp_iter_num - 1):  # 根据BP迭代的次数，搭建BP网络
-                #     self.sess.run(self.start_next_iteration)  # run start_next_iteration时表示当前一轮BP的输出
-                # --------------------------------------------------------------------------------------------
-                tmp = LLR
-                self.sess.run(train_step)  # 重新修改网络的输入为 llr_in
+                x = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: LLR})
+                y = self.sess.run(self.llr_into_bp_net)
+                # z = self.llr_into_bp_net.eval(self.sess)
+                v = self.sess.run(self.sigmoid_out)
+                x2 = self.sess.run(self.bp_out_llr)
+                x3 = self.sess.run(self.xe_v_sumc)
+                # self.sess.run()  # 重新修改网络的输入为 llr_in
+                p = self.sess.run(self.cross_entropy, feed_dict={self.labels: u_coded_bits})
+                z = self.sess.run(self.train_step, feed_dict={self.llr_placeholder: LLR, self.labels: u_coded_bits})
+                # x,y = self.sess.run([])
+                # -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out))
+                x1 = self.sess.run(tf.log(self.sigmoid_out))
+                pass
         # ------------- 保存训练好的神经网络 -----------------
         saver.save(self.sess, save_dir + "bp_model.ckpt")
         print(self.sess.run(tf.sparse.to_dense(self.V_to_C_params[0])))
-        # ---------------------------------------------------
-        # if real_batch_size != self.batch_size:
-        #     y_dec = y_dec[0:real_batch_size, :]
-        #
-        # return y_dec
-
-    # def restore_bp_network(self, sess):
-    #     # restore some layers
-    #     save_dict = {}
-    #     for layer in range(restore_layers_in):
-    #         save_dict[self.conv_filter_name[layer]] = self.conv_filter[layer]
-    #         save_dict[self.bias_name[layer]] = self.bias[layer]
-    #     model_id_str = np.array2string(model_id, separator='_', formatter={'int': lambda d: "%d" % d})
-    #     model_id_str = model_id_str[1:(len(model_id_str)-1)]
-    #     model_folder = format("%snetid%d_model%s" % (self.net_config.model_folder, self.net_id, model_id_str))
-    #     restore_model_name = format("%s/model.ckpt" % model_folder)
-    #     saver_restore = tf.train.Saver(save_dict)
-    #     saver_restore.restore(sess_in, restore_model_name)
-    #     print("Restore the first %d layers.\n" % restore_layers_in)
 
     def generate_inputs(self, G_matrix, batch_size, rng):
         K, N = np.shape(G_matrix)

@@ -1,2 +1,2 @@
-model_checkpoint_path: "bp_model.ckpt"
-all_model_checkpoint_paths: "bp_model.ckpt"
+model_checkpoint_path: "6_3bp_model.ckpt"
+all_model_checkpoint_paths: "6_3bp_model.ckpt"

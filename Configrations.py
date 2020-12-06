@@ -14,12 +14,12 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        # self.N_code = 576
-        # self.K_code = 432
-        self.N_code = 6
-        self.K_code = 3
-        # self.N_code = 10
-        # self.K_code = 5
+        self.N_code = 576
+        self.K_code = 432
+        # self.N_code = 6
+        # self.K_code = 3
+        # self.N_code = 16
+        # self.K_code = 8
         # self.N_code = 96
         # self.K_code = 48
         self.file_G = format('./LDPC_matrix/LDPC_gen_mat_%d_%d.txt' % (self.N_code, self.K_code))
@@ -30,7 +30,7 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # self.corr_para = 0.5  # correlation parameters of the colored noise 相关系数
         self.corr_para = 0.0  # correlation parameters of the colored noise 相关系数
         self.corr_para_simu = self.corr_para  # correlation parameters for simulation. this should be equal to corr_para. If not, it is used to test the model robustness.
-        self.cov_1_2_file = format('./Noise/cov_1_2_corr_para%.2f.dat'% self.corr_para)
+        self.cov_1_2_file = format('./Noise/%s_%s/cov_1_2_corr_para%.2f.dat'% (self.N_code, self.K_code, self.corr_para))
         self.cov_1_2_file_simu = self.cov_1_2_file
 
         # BP decoding
@@ -176,19 +176,23 @@ class TrainingConfig:
         # training data information
         self.training_sample_num = 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
         # training parameters
-        self.epoch_num = 20000   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
+        self.epoch_num = 20   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
         self.training_minibatch_size = 1400  # one mini-batch contains equal amount of data generated under different CSNR.
         self.SNR_set_gen_data = top_config.SNR_set_gen_data
         # the data in the feature file is the network input.
         # the data in the label file is the ground truth.
-        self.training_feature_file = format("./TrainingData/EstNoise_before_cnn%d.dat" % (self.currently_trained_net_id))
-        self.training_label_file = "./TrainingData/RealNoise.dat"
+        self.training_feature_file = format("./TrainingData/%s_%s/EstNoise_before_cnn%d.dat" %
+                                             (top_config.N_code, top_config.K_code, self.currently_trained_net_id))
+        self.training_label_file = format("./TrainingData/%s_%s/RealNoise.dat" %
+                                          (top_config.N_code, top_config.K_code))
 
         # test data information
-        self.test_sample_num = 105000 # it should be a multiple of test_minibatch_size
-        self.test_minibatch_size = 3500
-        self.test_feature_file = format("./TestData/EstNoise_before_cnn%d.dat" % (self.currently_trained_net_id))
-        self.test_label_file = "./TestData/RealNoise.dat"
+        self.test_sample_num = 42000  # 原来是 105000 # it should be a multiple of test_minibatch_size
+        self.test_minibatch_size = 1400  # 原来是 3500，为了配合训练BP，改成和上面training_minibatch_size一样的 1400
+        self.test_feature_file = format("./TestData/%s_%s/EstNoise_before_cnn%d.dat" %
+                                        (top_config.N_code, top_config.K_code, self.currently_trained_net_id))
+        self.test_label_file = format("./TestData/%s_%s/RealNoise.dat" %
+                                      (top_config.N_code, top_config.K_code))
 
         # normality test
         self.normality_test_enabled = top_config.normality_test_enabled
@@ -204,3 +208,7 @@ class TrainingConfig:
         if self.training_minibatch_size % np.size(self.SNR_set_gen_data)!=0 or self.test_minibatch_size % np.size(self.SNR_set_gen_data)!=0:
             print('A batch of training or test data should contains equal amount of data under different CSNRs!')
             exit(0)
+
+        # code feature
+        self.N_code = top_config.N_code
+        self.K_code = top_config.K_code

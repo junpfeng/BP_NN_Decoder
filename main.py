@@ -28,7 +28,13 @@ net_config = Configrations.NetConfig(top_config)
 
 # (n,k)线性分组码，G:生成矩阵，H:校验矩阵， n 是经过生成矩阵之后的码长，k 是原来的码长
 code = lbc.LDPC(top_config.N_code, top_config.K_code, top_config.file_G, top_config.file_H)
-
+'''
+更改码字的时候，需要配套修改的类有：
+1. top_config 、 matlab 中生成噪声的部分和 matlab 中生成生成矩阵和校验矩阵部分：
+2. 当启用新的码字时，先运行 train_bp_network 建立并训练对应的BP网络。
+3. 如果恢复网络参数时,发生错误,提示网络不匹配,则有可能是batch_size不匹配,尝试删除已有的网络,并修改batch_size.
+'''
+batch_size = int(train_config.training_minibatch_size // np.size(train_config.SNR_set_gen_data))
 if top_config.function == 'GenData':
     # 定义一个噪声生成器，读取的噪声是 [ 576 * 576 ]
     noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file) # top_config.cov_1_2_file = Noise/cov_1_2_corr_para_0.5.dat
@@ -46,12 +52,13 @@ elif top_config.function == 'Train':
     conv_net = ConvNet.ConvNet(net_config, train_config, net_id)
     # 开始训练网络
     conv_net.train_network(top_config.model_id)
+    # 训练 BP 网络
+    # ibd.train_bp_network(code, top_config, net_config, batch_size)
 elif top_config.function == 'Simulation':
-    batch_size = 5000
+
     # if top_config.analyze_res_noise:  # 分析残差噪声
     #     simutimes_for_anal_res_power = int(np.ceil(5e6 / float(top_config.K_code * batch_size)) * batch_size)
     #     ibd.analyze_residual_noise(code, top_config, net_config, simutimes_for_anal_res_power, batch_size)
 
     simutimes_range = np.array([np.ceil(1e7 / float(top_config.K_code * batch_size)) * batch_size, np.ceil(1e8 / float(top_config.K_code * batch_size)) * batch_size], np.int32)
     ibd.simulation_colored_noise(code, top_config, net_config, simutimes_range, 1000, batch_size)
-    # ibd.train_bp_network(code, top_config, net_config, simutimes_range, 1000, batch_size)

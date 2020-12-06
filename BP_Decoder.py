@@ -160,6 +160,14 @@ class BP_NetDecoder:
         init = tf.global_variables_initializer()
         self.sess.run(init)
 
+        # 恢复已经训练过的 bp_net 参数
+        self.bp_net_save_dir = format("model/bp_model/%s_%s/" % (top_config.N_code, top_config.K_code))
+        self.bp_model = "bp_model.ckpt"
+        # 如果已经训练过了，就先加载之前的参数
+        if os.path.isfile(self.bp_net_save_dir + self.bp_model + ".meta"):
+            saver = tf.train.Saver()
+            saver.restore(self.sess, self.bp_net_save_dir + self.bp_model)
+
     def __del__(self):
         self.sess.close()
         print('Close a tf session!')
@@ -345,7 +353,6 @@ class BP_NetDecoder:
 
         # 尝试保存网络
         saver = tf.train.Saver()
-        save_dir = "model/bp_model/"
         G_matrix = linear_code.G_matrix  # 用于产生 u_coded_bits 样本的生成矩阵
 
         for SNR in SNRset:
@@ -368,7 +375,7 @@ class BP_NetDecoder:
                 x1 = self.sess.run(tf.log(self.sigmoid_out))
                 pass
         # ------------- 保存训练好的神经网络 -----------------
-        saver.save(self.sess, save_dir + "bp_model.ckpt")
+        saver.save(self.sess, self.bp_net_save_dir + self.bp_model)
         print(self.sess.run(tf.sparse.to_dense(self.V_to_C_params[0])))
 
     def generate_inputs(self, G_matrix, batch_size, rng):

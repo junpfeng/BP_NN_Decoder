@@ -95,7 +95,8 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
             denoise_net_in[net_id] = denoise_net_in[0]
             denoise_net_out[net_id] = denoise_net_out[0]
         else:  # 默认进入
-            conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)  # 建立了一个残差噪声的神经网络对象
+            # conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)  # 建立了一个残差噪声的神经网络对象
+            conv_net[net_id] = ConvNet.ConvNet(net_config, top_config, net_id)  # 建立了一个残差噪声的神经网络对象
             denoise_net_in[net_id], denoise_net_out[net_id] = conv_net[net_id].build_network()  # 构建好对应的神经网络，返回的是网络的输入和输出
     # init gragh
     init = tf.global_variables_initializer()
@@ -238,7 +239,8 @@ def generate_noise_samples(linear_code, top_config, net_config, train_config, bp
     denoise_net_in = {}
     denoise_net_out = {}
     for net_id in range(net_id_data_for):
-        conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)
+        # conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)
+        conv_net[net_id] = ConvNet.ConvNet(net_config, train_config, net_id)
         denoise_net_in[net_id], denoise_net_out[net_id] = conv_net[net_id].build_network()
 
     # init gragh
@@ -326,7 +328,8 @@ def analyze_residual_noise(linear_code, top_config, net_config, simutimes, batch
 
     # build network for each CNN denoiser,
     for net_id in range(net_id_tested+1):
-        conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)
+        # conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)
+        conv_net[net_id] = ConvNet.ConvNet(net_config, top_config, net_id)
         denoise_net_in[net_id], denoise_net_out[net_id] = conv_net[net_id].build_network()
 
     # init gragh
@@ -392,7 +395,7 @@ def analyze_residual_noise(linear_code, top_config, net_config, simutimes, batch
 
     #  训练BP网络
     # simulation
-def train_bp_network(linear_code, top_config, net_config, simutimes_range, target_err_bits_num, batch_size):
+def train_bp_network(linear_code, top_config, net_config, batch_size):
     # target_err_bits_num: the simulation stops if the number of bit errors reaches the target.
     # simutimes_range: [min_simutimes, max_simutimes]
 

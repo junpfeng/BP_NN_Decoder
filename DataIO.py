@@ -91,7 +91,7 @@ class TestDataIO:
         if np.size(self.all_features) == 0:
             self.all_features = np.fromfile(self.fin_feature, np.float32, self.feature_length * self.test_sample_num)
             self.all_labels = np.fromfile(self.fin_label, np.float32, self.label_length * self.test_sample_num)
-            self.all_features = np.reshape(self.all_features, [self.test_sample_num, self.feature_length])
+            self.all_features = np.reshape(self.all_features, [self.test_sample_num, self.feature_length])  # 出错的原因：self.all_feature < self.test_sample_num * self.feature_length
             self.all_labels = np.reshape(self.all_labels, [self.test_sample_num, self.label_length])
 
         features = self.all_features[self.data_position:(self.data_position + batch_size), :]

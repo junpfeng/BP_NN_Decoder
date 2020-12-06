@@ -77,7 +77,8 @@ class ConvNet:
                 save_dict[self.bias_name[layer]] = self.bias[layer]
             model_id_str = np.array2string(model_id, separator='_', formatter={'int': lambda d: "%d" % d})
             model_id_str = model_id_str[1:(len(model_id_str)-1)]
-            model_folder = format("%snetid%d_model%s" % (self.net_config.model_folder, self.net_id, model_id_str))
+            model_folder = format("%snetid%d_model%s/%s_%s" %
+                                  (self.net_config.model_folder, self.net_id, model_id_str, self.train_config.N_code, self.train_config.K_code))
             restore_model_name = format("%s/model.ckpt" % model_folder)
             saver_restore = tf.train.Saver(save_dict)
             saver_restore.restore(sess_in, restore_model_name)
@@ -97,7 +98,8 @@ class ConvNet:
 
         model_id_str = np.array2string(model_id, separator='_', formatter={'int': lambda d: "%d" % d})
         model_id_str = model_id_str[1:(len(model_id_str) - 1)]
-        save_model_folder = format("%snetid%d_model%s" % (self.net_config.model_folder, self.net_id, model_id_str))
+        save_model_folder = format("%snetid%d_model%s/%s_%s" %
+                                   (self.net_config.model_folder, self.net_id, model_id_str, self.train_config.N_code, self.train_config.K_code))
         # model(a_b_c) means the 3rd network model indexed by c is trained based on the 1st network model indexed by a and the 2nd network model indexed by b. a,b,
         # c could be the same.
 

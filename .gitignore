@@ -4,3 +4,5 @@ __pycache__/*
 *.dat
 *.pb*
 checkpoint
+*.pdf
+

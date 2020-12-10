@@ -18,8 +18,8 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # self.K_code = 432
         # self.N_code = 6
         # self.K_code = 3
-        self.N_code = 16
-        self.K_code = 8
+        # self.N_code = 16
+        # self.K_code = 8 
         # self.N_code = 96
         # self.K_code = 48
         self.file_G = format('./LDPC_matrix/LDPC_gen_mat_%d_%d.txt' % (self.N_code, self.K_code))

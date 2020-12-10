@@ -14,8 +14,8 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        # self.N_code = 576
-        # self.K_code = 432
+        self.N_code = 576
+        self.K_code = 432
         # self.N_code = 6
         # self.K_code = 3
         # self.N_code = 16

@@ -107,10 +107,11 @@ class BP_NetDecoder:
         # -----------新增变量------------
         self.x_bit_placeholder = tf.placeholder(tf.int8, [batch_size, self.v_node_num])
         self.train_bp_network = True
+        self.use_train_bp_net = False
         # ---------- BP 网络的参数 -------------
         self.V_to_C_params = {}
         self.C_to_V_params = {}
-        self.BP_layers = 5
+        self.BP_layers = 50
         self.xe_v_sumc = {}
         # ---------- 构建稀疏转换 -------------
         # --------- 将参数放到数组中 ----------
@@ -141,6 +142,7 @@ class BP_NetDecoder:
         # --------------------不带训练参数的BP译码网络------------------
         if not self.train_bp_network:
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out = self.build_network()
+            return
         # -----------------带训练参数的BP译码网络的参数矩阵--------------
         else:  # 之后考虑为每个 H_sumC_to_V 和 H_sumV_to_C 单独进行变量随机化
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out, self.bp_out_llr = self.build_trained_bp_network()
@@ -163,8 +165,8 @@ class BP_NetDecoder:
         # 恢复已经训练过的 bp_net 参数
         self.bp_net_save_dir = format("model/bp_model/%s_%s/" % (top_config.N_code, top_config.K_code))
         self.bp_model = "bp_model.ckpt"
-        # 如果已经训练过了，就先加载之前的参数
-        if os.path.isfile(self.bp_net_save_dir + self.bp_model + ".meta"):
+        # 如果已经训练过了，并且需要训练，就先加载之前的参数
+        if self.use_train_bp_net and os.path.isfile(self.bp_net_save_dir + self.bp_model + ".meta"):
             saver = tf.train.Saver()
             saver.restore(self.sess, self.bp_net_save_dir + self.bp_model)
 
@@ -357,7 +359,7 @@ class BP_NetDecoder:
 
         for SNR in SNRset:
             real_batch_size = batch_size
-            for i in range(50):  # 20000
+            for i in range(200):  # 每一种SNR的训练轮数，原来是 20000
                 # 需要一个更新输入数据的过程
                 x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
                 # --------------------------------------------------------------------------------------------

@@ -80,34 +80,31 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         exit(0)
     bp_decoder = BP_Decoder.BP_NetDecoder(H_matrix, batch_size)
 
-    # saver = tf.train.Saver()
-    # save_dir = "model/bp_model/"
-    # saver.restore(bp_decoder.sess, save_dir + "bp_model.ckpt")
-
     ## build denoising network
     conv_net = {}
     denoise_net_in = {}
     denoise_net_out = {}
     # build network for each CNN denoiser,
-    for net_id in range(denoising_net_num):
-        if top_config.same_model_all_nets and net_id > 0:
-            conv_net[net_id] = conv_net[0]
-            denoise_net_in[net_id] = denoise_net_in[0]
-            denoise_net_out[net_id] = denoise_net_out[0]
-        else:  # 默认进入
-            # conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)  # 建立了一个残差噪声的神经网络对象
-            conv_net[net_id] = ConvNet.ConvNet(net_config, top_config, net_id)  # 建立了一个残差噪声的神经网络对象
-            denoise_net_in[net_id], denoise_net_out[net_id] = conv_net[net_id].build_network()  # 构建好对应的神经网络，返回的是网络的输入和输出
-    # init gragh
-    init = tf.global_variables_initializer()
-    sess = tf.Session()
-    print('Open a tf session!')
-    sess.run(init)
-    # restore denoising network
-    for net_id in range(denoising_net_num):
-        if top_config.same_model_all_nets and net_id > 0:
-            break
-        conv_net[net_id].restore_network_with_model_id(sess, net_config.total_layers, model_id[0:(net_id+1)])  # 恢复之前训练好的网络。
+    if net_config.use_conv_net:  # 如果使用 conv net 才加载
+        for net_id in range(denoising_net_num):
+            if top_config.same_model_all_nets and net_id > 0:
+                conv_net[net_id] = conv_net[0]
+                denoise_net_in[net_id] = denoise_net_in[0]
+                denoise_net_out[net_id] = denoise_net_out[0]
+            else:  # 默认进入
+                # conv_net[net_id] = ConvNet.ConvNet(net_config, None, net_id)  # 建立了一个残差噪声的神经网络对象
+                conv_net[net_id] = ConvNet.ConvNet(net_config, top_config, net_id)  # 建立了一个残差噪声的神经网络对象
+                denoise_net_in[net_id], denoise_net_out[net_id] = conv_net[net_id].build_network()  # 构建好对应的神经网络，返回的是网络的输入和输出
+        # init gragh
+        init = tf.global_variables_initializer()
+        sess = tf.Session()
+        print('Open a tf session!')
+        sess.run(init)
+        # restore denoising network
+        for net_id in range(denoising_net_num):
+            if top_config.same_model_all_nets and net_id > 0:
+                break
+            conv_net[net_id].restore_network_with_model_id(sess, net_config.total_layers, model_id[0:(net_id+1)])  # 恢复之前训练好的网络。
 
     ## initialize simulation times
     max_simutimes = simutimes_range[1]
@@ -146,7 +143,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         actual_simutimes = 0
         rng = np.random.RandomState(0)
         noise_io.reset_noise_generator()  # reset随机数种子
-        max_batches = 100
+        max_batches = 10
         for ik in range(0, max_batches):  # 遍历max_batches 6667
             print('Batch %d in total %d batches.' % (ik, int(max_batches)), end=' ')
             if ik == max_batches - 1 and residual_times != 0:  # 如果遍历结束，并且residual_times != 0 ，在这里默认是 == 0
@@ -161,12 +158,12 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
             practical_snr = 10*np.log10(1 / (noise_power * 2.0))
             print('Practical EbN0: %.2f' % practical_snr)
 
-            for iter in range(0, denoising_net_num + 1):  # denoising_net_num == 1
-                # BP decoding
+            for iter in range(0, denoising_net_num + 1):   # denoising_net_num == 1
+                # BP decoding，第二个参数bp_iter_num 失效的，因为迭代次数是由前面的变量 BP_layers 决定的
                 u_BP_decoded = bp_decoder.decode(LLR.astype(np.float32), bp_iter_num[iter])  # BP译码传输的本来是LLR，返回的则是对应译码的码字
                 # ！！！当iter==0，误比特率记录的是BP的误比特率，当iter==1，记录的是BP-CNN-BP的误比特率。
-
-                if iter < denoising_net_num:  # denoising_net_num == 1，当iter==0，使用CNN进行噪声估计，当iter==0，不使用CNN，即单纯使用BP译码
+                # 首先判断是否使用 conv net
+                if net_config.use_conv_net and iter < denoising_net_num:  # denoising_net_num == 1，当iter==0，使用CNN进行噪声估计，当iter==0，不使用CNN，即单纯使用BP译码
                     if top_config.update_llr_with_epdf:
                         prob = conv_net[iter].get_res_noise_pdf(model_id).get(np.float32(SNR))
                         LLR = denoising_and_calc_LLR_epdf(prob, y_receive, u_BP_decoded, denoise_net_in[iter], denoise_net_out[iter], sess)
@@ -193,7 +190,8 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
     end = datetime.datetime.now()
     print('Time: %ds' % (end-start).seconds)
     print("end\n")
-    sess.close()
+    if net_config.use_conv_net:
+        sess.close()
     print('Close the tf session!')
 
 

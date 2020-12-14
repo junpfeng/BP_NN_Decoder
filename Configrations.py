@@ -14,14 +14,22 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        self.N_code = 576
-        self.K_code = 432
+        # self.N_code = 576
+        # self.K_code = 432
+        # self.N_code = 576
+        # self.K_code = 480
+        # self.N_code = 240
+        # self.K_code = 120
         # self.N_code = 6
         # self.K_code = 3
-        # self.N_code = 16
-        # self.K_code = 8 
+        self.N_code = 16
+        self.K_code = 8
         # self.N_code = 96
         # self.K_code = 48
+        # self.K_code = 45
+        # self.N_code = 63
+        # self.N_code = 128
+        # self.K_code = 64
         self.file_G = format('./LDPC_matrix/LDPC_gen_mat_%d_%d.txt' % (self.N_code, self.K_code))
         self.file_H = format('./LDPC_matrix/LDPC_chk_mat_%d_%d.txt' % (self.N_code, self.K_code))
 
@@ -30,7 +38,7 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # self.corr_para = 0.5  # correlation parameters of the colored noise 相关系数
         self.corr_para = 0.0  # correlation parameters of the colored noise 相关系数
         self.corr_para_simu = self.corr_para  # correlation parameters for simulation. this should be equal to corr_para. If not, it is used to test the model robustness.
-        self.cov_1_2_file = format('./Noise/%s_%s/cov_1_2_corr_para%.2f.dat'% (self.N_code, self.K_code, self.corr_para))
+        self.cov_1_2_file = format('./Noise/%s_%s/cov_1_2_corr_para%.2f.dat' % (self.N_code, self.K_code, self.corr_para))
         self.cov_1_2_file_simu = self.cov_1_2_file
 
         # BP decoding
@@ -42,8 +50,8 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.currently_trained_net_id = 0  # denote the cnn denoiser which is in training currently
         self.cnn_net_number = 0  # 1  # 当需要使用cnn时，设为1 ，the number of cnn denoisers in final simulation
         self.layer_num = 4  # the number of cnn layers
-        self.filter_sizes = np.array([9,3,3,15])  # the convolutional filter size. The length of this list should be equal to the layer number
-        self.feature_map_nums = np.array([64,32,16,1])  # the last element must be 1
+        self.filter_sizes = np.array([9, 3, 3, 15])  # the convolutional filter size. The length of this list should be equal to the layer number
+        self.feature_map_nums = np.array([64, 32, 16, 1])  # the last element must be 1
         self.restore_network_from_file = False  # whether to restore previous saved network for training
         self.model_id = np.array([0])  # differentiate models trained with the same configurations. Its length should be equal to cnn_net_number. model_id[i] denotes the index of
         #  the ith network in the BP-CNN-BP-CNN-... structure.
@@ -51,10 +59,10 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # Trianing
         self.normality_test_enabled = True
         self.normality_lambda = 1
-        self.SNR_set_gen_data = np.array([0,0.5,1,1.5,2,2.5,3], dtype=np.float32)
-
+        self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)
         # Simulation
-        self.eval_SNRs = np.array([0,0.5,1,1.5,2,2.5,3], np.float32)
+        self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)
+        # self.eval_SNRs = np.array([0, 3], np.float32)
         self.same_model_all_nets = False  # denote whether the same model parameters for all denoising networks. If true and cnn_net_number > 1, we are testing the performance
         #  of iteration between a BP and a denoising network.
         self.analyze_res_noise = True

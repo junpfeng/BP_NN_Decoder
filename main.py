@@ -36,7 +36,15 @@ code = lbc.LDPC(top_config.N_code, top_config.K_code, top_config.file_G, top_con
 3. 当启用新的码字时，先运行 train_bp_network 建立并训练对应的BP网络。
 4. 如果恢复网络参数时,发生错误,提示网络不匹配,则有可能是batch_size不匹配,尝试删除已有的网络,并修改batch_size.
 5. conv 和 bp 不能一起训练，bp 在获取session 的时候，会将 conv 的session获取过来，从而导致存储了双图。
+
+-----------
+从 https://www.uni-kl.de/channel-codes/channel-codes-database/ 下载下来的 alist 文件
+1. 首先经过 LDPC_alist 工程，得到chk mx 的稀疏矩阵中非零元素的坐标
+2. 然后使用matlab中的 txt2H 得到对应的chk mx
+3. 然后使用 matlab 中的 H2G 得到对应的 Gen mx，如果返回值的 valid=0，则将 此时得到的G和H做一个 exchHG，然后再做第三步。
+5. 然后使用 find_x_y 得到 Gen mx 的稀疏矩阵的非零元素坐标
 '''
+
 batch_size = int(train_config.training_minibatch_size // np.size(train_config.SNR_set_gen_data))
 if top_config.function == 'GenData':
     # 定义一个噪声生成器，读取的噪声是 [ 576 * 576 ]

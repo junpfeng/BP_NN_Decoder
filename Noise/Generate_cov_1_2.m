@@ -1,15 +1,18 @@
 %% This file is to generate the matrix for generating colored noise.
 
 clear;
-
+% 用于产生对应码长的噪声矩阵，只关心总码长，不关心码率。
 % eta = 0.8;
 % eta = 0.5
 eta = 0.0;
-N = 576;  % (576,432)
+% N = 576;  % (576,432)
+N = 240;
 % N = 6;  % (6,3)
 % N = 16;
 % N = 10; %(10, 5)
 % N = 96;  % (96, 48)
+% N = 63;
+%N = 128
 cov = zeros(N, N);
 for ii=1:N
     for jj=ii:N

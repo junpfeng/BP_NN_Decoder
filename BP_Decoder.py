@@ -11,7 +11,7 @@ top_config = Configrations.TopConfig()
 class GetMatrixForBPNet:
     # this class is to calculate the matrices used to perform BP process with matrix operation
     # test_H即校验矩阵，loc_nzero_row是校验矩阵中非零元素的坐标（横坐标和纵坐标分别存储）
-    def __init__(self, test_H, loc_nzero_row):
+    def  __init__(self, test_H, loc_nzero_row):
         print("Construct the Matrics H class!\n")
         self.H = test_H
         self.m, self.n = np.shape(test_H)  # 校验矩阵是 144 行，576列！！！

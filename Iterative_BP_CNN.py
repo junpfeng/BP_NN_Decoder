@@ -143,7 +143,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         actual_simutimes = 0
         rng = np.random.RandomState(0)
         noise_io.reset_noise_generator()  # reset随机数种子
-        max_batches = 10
+        max_batches = 6667
         for ik in range(0, max_batches):  # 遍历max_batches 6667
             print('Batch %d in total %d batches.' % (ik, int(max_batches)), end=' ')
             if ik == max_batches - 1 and residual_times != 0:  # 如果遍历结束，并且residual_times != 0 ，在这里默认是 == 0

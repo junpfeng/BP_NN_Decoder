@@ -59,10 +59,11 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # Trianing
         self.normality_test_enabled = True
         self.normality_lambda = 1
-        self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)
+        self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+        # self.SNR_set_gen_data = np.array([3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
         # Simulation
-        self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)
-        # self.eval_SNRs = np.array([0, 3], np.float32)
+        self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)  # 这个修改和 SNR_set_gen_data 是匹配的
+        # self.eval_SNRs = np.array([3], np.float32)
         self.same_model_all_nets = False  # denote whether the same model parameters for all denoising networks. If true and cnn_net_number > 1, we are testing the performance
         #  of iteration between a BP and a denoising network.
         self.analyze_res_noise = True

@@ -11,8 +11,8 @@ from matplotlib import pyplot as plt
 
 fig, ax = plt.subplots()
 
-N = 576
-K = 432
+N = 16
+K = 8
 BP_iter_num = 5
 
 list_BP_iter_num = [10, 20, 40, 50, 60]

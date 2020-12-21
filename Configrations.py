@@ -59,11 +59,14 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # Trianing
         self.normality_test_enabled = True
         self.normality_lambda = 1
-        self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
-        # self.SNR_set_gen_data = np.array([3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
-        # Simulation
-        self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)  # 这个修改和 SNR_set_gen_data 是匹配的
-        # self.eval_SNRs = np.array([3], np.float32)
+
+        if self.N_code == 16 and self.K_code == 8:
+            self.SNR_set_gen_data = np.array([-3, -2.5, -2, -1.5, -1, -0.5, 0], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            self.eval_SNRs = np.array([-3, -2.5, -2, -1.5, -1, -0.5, 0], np.float32)
+        else:
+            self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)  # 这个修改和 SNR_set_gen_data 是匹配的
+
         self.same_model_all_nets = False  # denote whether the same model parameters for all denoising networks. If true and cnn_net_number > 1, we are testing the performance
         #  of iteration between a BP and a denoising network.
         self.analyze_res_noise = True
@@ -184,10 +187,10 @@ class TrainingConfig:
         self.currently_trained_net_id = top_config.currently_trained_net_id
 
         # training data information
-        self.training_sample_num = 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
+        self.training_sample_num = 1999200 # 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
         # training parameters
         self.epoch_num = 20000   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
-        self.training_minibatch_size = 1400  # one mini-batch contains equal amount of data generated under different CSNR.
+        self.training_minibatch_size = 1400 # 1400  # one mini-batch contains equal amount of data generated under different CSNR.
         self.SNR_set_gen_data = top_config.SNR_set_gen_data
         # the data in the feature file is the network input.
         # the data in the label file is the ground truth.

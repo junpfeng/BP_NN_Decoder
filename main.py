@@ -39,10 +39,12 @@ code = lbc.LDPC(top_config.N_code, top_config.K_code, top_config.file_G, top_con
 
 -----------
 从 https://www.uni-kl.de/channel-codes/channel-codes-database/ 下载下来的 alist 文件
+0. 这个代码似乎只支持系统生成矩阵。
 1. 首先经过 LDPC_alist 工程，得到chk mx 的稀疏矩阵中非零元素的坐标
 2. 然后使用matlab中的 txt2H 得到对应的chk mx
 3. 然后使用 matlab 中的 H2G 得到对应的 Gen mx，如果返回值的 valid=0，则将 此时得到的G和H做一个 exchHG，然后再做第三步。
 5. 然后使用 find_x_y 得到 Gen mx 的稀疏矩阵的非零元素坐标
+
 '''
 
 batch_size = int(train_config.training_minibatch_size // np.size(train_config.SNR_set_gen_data))
@@ -72,5 +74,5 @@ elif top_config.function == 'Simulation':
     # if top_config.analyze_res_noise:  # 分析残差噪声
     #     simutimes_for_anal_res_power = int(np.ceil(5e6 / float(top_config.K_code * batch_size)) * batch_size)
     #     ibd.analyze_residual_noise(code, top_config, net_config, simutimes_for_anal_res_power, batch_size)
-    simutimes_range = np.array([np.ceil(1e7 / float(top_config.K_code * batch_size)) * batch_size, np.ceil(1e8 / float(top_config.K_code * batch_size)) * batch_size], np.int32)
+    simutimes_range = np.array([np.ceil(1e7 / float(top_config.K_code * batch_size)) * batch_size, np.ceil(1e8 / float(top_config.K_code * batch_size)) * batch_size], np.int32)  #　１ｅ７－１ｅ８
     ibd.simulation_colored_noise(code, top_config, net_config, simutimes_range, 1000, batch_size)

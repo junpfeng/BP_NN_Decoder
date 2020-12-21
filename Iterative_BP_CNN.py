@@ -66,7 +66,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
     ## load configurations from top_config
     SNRset = top_config.eval_SNRs
     bp_iter_num = top_config.BP_iter_nums_simu
-    noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file_simu, rng_seed=0)
+    noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file_simu, rng_seed=0)  # cov_1_2_file_simu 就是Noise文件夹下对应的噪声文件
     denoising_net_num = top_config.cnn_net_number
     model_id = top_config.model_id
 
@@ -143,16 +143,11 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         actual_simutimes = 0
         rng = np.random.RandomState(0)
         noise_io.reset_noise_generator()  # reset随机数种子
-        # max_batches = 66
         for ik in range(0, max_batches):  # 遍历max_batches 6667
             print('Batch %d in total %d batches.' % (ik, int(max_batches)), end=' ')
             if ik == max_batches - 1 and residual_times != 0:  # 如果遍历结束，并且residual_times != 0 ，在这里默认是 == 0
                 real_batch_size = residual_times
             x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io, rng)  #
-            # ----------- 将 u_coded_bits, s_mod和LLR tensor 化 ----------
-            # u_coded_bits = tf.Variable(u_coded_bits, dtype=tf.float32, name="u_coded_bits")
-            # s_mod = tf.Variable(s_mod, dtype=tf.float32, name="s_mod")
-            # LLR = tf.Variable(LLR, dtype=tf.float32, name="LLR")
             # ------------------------------------------------------------
             noise_power = np.mean(np.square(ch_noise))
             practical_snr = 10*np.log10(1 / (noise_power * 2.0))
@@ -175,7 +170,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
                 # 同一个码字会记录两次误比特率，一次是只使用BP，还有一次是BP+CNN+BP。一般来说，经过BP+CNN+BP之后的误比特率要比只经过BP要好。
 
             actual_simutimes += real_batch_size
-            if bit_errs_iter[denoising_net_num] >= target_err_bits_num and actual_simutimes >= min_simutimes:
+            if bit_errs_iter[denoising_net_num] >= target_err_bits_num and actual_simutimes >= min_simutimes:  # 当错误码元数或者仿真迭代次数达标
                 break
         print('%d bits are simulated!' % (actual_simutimes * K))
 
@@ -184,7 +179,9 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
         for iter in range(0, denoising_net_num+1):  # 1+1 = 2
             ber_iter[iter] = bit_errs_iter[iter] / float(K * actual_simutimes)
             fout_ber.write(str(ber_iter[iter]) + '\t')
+            print(ber_iter[iter])
         fout_ber.write('\n')
+        # break
 
     fout_ber.close()
     end = datetime.datetime.now()

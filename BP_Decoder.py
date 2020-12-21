@@ -87,6 +87,9 @@ class GetMatrixForBPNet:
 
 class BP_NetDecoder:
     def __init__(self, H, batch_size):  # 校验矩阵，外部传入
+
+        self.train_bp_network = False
+        self.use_train_bp_net = False
         # 设置tf 初始化的模式
         self.initializer = tf.truncated_normal_initializer(mean=1, stddev=0.1)
         _, self.v_node_num = np.shape(H)  #  获取变量节点长度（即码元的长度 576）
@@ -96,23 +99,19 @@ class BP_NetDecoder:
         gm1 = GetMatrixForBPNet(H[:, :], loc_nzero_row)  #
         self.H_sumC_to_V = gm1.get_Matrix_CV()  # 返回：C->V 的转换矩阵
         self.H_x_to_xe0, self.H_sumV_to_C, self.H_xe_v_sumc_to_y = gm1.get_Matrix_VC()  # 返回：初始化的变量节点、V->C 的转换矩阵、输出层的转换矩阵
-        # ---------改为 tf.Variable ----------
-        self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32)
-        # self.H_sumV_to_C = tf.Variable(self.H_sumV_to_C, dtype=tf.float32)
-        self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32)
+
         # ------------------------------------
         self.batch_size = batch_size
         self.llr_placeholder = tf.placeholder(tf.float32, [batch_size, self.v_node_num], name="llr_placeholder")
         self.labels = tf.placeholder(tf.float32, [batch_size, self.v_node_num], name="label_placeholder")
         # -----------新增变量------------
         self.x_bit_placeholder = tf.placeholder(tf.int8, [batch_size, self.v_node_num])
-        self.train_bp_network = True
-        self.use_train_bp_net = False
         # ---------- BP 网络的参数 -------------
         self.V_to_C_params = {}
         self.C_to_V_params = {}
-        self.BP_layers = 50
+        self.BP_layers = 10
         self.xe_v_sumc = {}
+
         # ---------- 构建稀疏转换 -------------
         # --------- 将参数放到数组中 ----------
         i, j = np.nonzero(self.H_sumC_to_V)
@@ -142,9 +141,18 @@ class BP_NetDecoder:
         # --------------------不带训练参数的BP译码网络------------------
         if not self.train_bp_network:
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out = self.build_network()
+            self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_placeholder))
+            init = tf.global_variables_initializer()
+            self.sess = tf.Session()
+            print("open a tf session")
+            self.sess.run(init)
             return
         # -----------------带训练参数的BP译码网络的参数矩阵--------------
         else:  # 之后考虑为每个 H_sumC_to_V 和 H_sumV_to_C 单独进行变量随机化
+            # ---------改为 tf.Variable ----------
+            self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32)
+            # self.H_sumV_to_C = tf.Variable(self.H_sumV_to_C, dtype=tf.float32)
+            self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32)
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out, self.bp_out_llr = self.build_trained_bp_network()
         # -------------------------------------------------------------
         # -------------------------------------------------------------
@@ -190,17 +198,21 @@ class BP_NetDecoder:
         :param xe_0: (2040, 5000) 初始化的变量节点
         :return: 
         """
-        xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-        xe_tanh = tf.to_float(xe_tanh)
-        xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-        xe_sum_log_img = tf.matmul(H_sumC_to_V, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-        xe_sum_log_real = tf.matmul(H_sumC_to_V, tf.log(1e-8 + tf.abs(xe_tanh)))
-        xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-        xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-        xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-        xe_pd_modified = tf.add(xe_product, xe_product_temp)
-        xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-        xe_c_sumv = tf.add(xe_0, tf.matmul(H_sumV_to_C, xe_v_sumc))
+        for layer in range(self.BP_layers):
+            if 0 != layer:
+                xe_v2c_pre_iter = xe_c_sumv
+
+            xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
+            xe_tanh = tf.to_float(xe_tanh)
+            xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
+            xe_sum_log_img = tf.matmul(H_sumC_to_V, tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
+            xe_sum_log_real = tf.matmul(H_sumC_to_V, tf.log(1e-8 + tf.abs(xe_tanh)))
+            xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
+            xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
+            xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
+            xe_pd_modified = tf.add(xe_product, xe_product_temp)
+            xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
+            xe_c_sumv = tf.add(xe_0, tf.matmul(H_sumV_to_C, xe_v_sumc))
         return xe_v_sumc, xe_c_sumv  # xe_v_sumc 是输出层，xe_c_sumv 是这一轮BP的输出，下一轮的输入
 
     def H(self, x):

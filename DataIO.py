@@ -107,7 +107,7 @@ class NoiseIO:
     read_from_file: False
     noise_file: None
     """
-    def __init__(self, blk_len, read_from_file, noise_file, cov_1_2_mat_file_gen_noise, rng_seed=None):
+    def __init__(self, blk_len, read_from_file, noise_file, cov_1_2_mat_file_gen_noise, rng_seed=None):  # 第三个参数 noise_file 是扩展为自定义的噪声文件用，暂时没有使用。
         self.read_from_file = read_from_file  # False，不从外部文件导入
         self.blk_len = blk_len  # blk是线性分组码的简称，len是码长
         self.rng_seed = rng_seed  # 随机数种子
@@ -117,7 +117,7 @@ class NoiseIO:
             self.rng = np.random.RandomState(rng_seed)  # 定义一个随机数对象 rng.rand(n)可以产生n个标准正态分布随机数
             fin_cov_file = open(cov_1_2_mat_file_gen_noise, 'rb')  # cov_1_2_mat_file_gen_noise = Noise/cov_1_2_corr_para_0.5.dat
             cov_1_2_mat = np.fromfile(fin_cov_file, np.float32, blk_len*blk_len)  # np.fromfile 会读取 fin_cov_file 中的二进制数据，读取blk_len*ble_len个，保存为float32类型
-            cov_1_2_mat = np.reshape(cov_1_2_mat, [blk_len, blk_len])  # 将读取的数据格式转为 [ble_len,ble_len]尺寸。
+            cov_1_2_mat = np.reshape(cov_1_2_mat, [blk_len, blk_len])  # 将读取的数据格式转为 [ble_len,ble_len]的单位矩阵。
             # 关闭文件管理器
             fin_cov_file.close()
             # output parts of the correlation function for check

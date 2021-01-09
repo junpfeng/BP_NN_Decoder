@@ -88,7 +88,7 @@ class GetMatrixForBPNet:
 class BP_NetDecoder:
     def __init__(self, H, batch_size):  # 校验矩阵，外部传入
 
-        self.train_bp_network = False
+        self.train_bp_network = True
         self.use_train_bp_net = False
         # 设置tf 初始化的模式
         self.initializer = tf.truncated_normal_initializer(mean=1, stddev=0.1)
@@ -163,7 +163,7 @@ class BP_NetDecoder:
         self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.sigmoid_out)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
         self.train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entropy)
 
-        self.sess = tf.Session()  # open a session
+        self.sess = tf.Session(graph=tf.get_default_graph())  # open a session
         # ---- tmp print --------------
         # print(self.sess.run((self.C_to_V_params[0])))
         print('Open a tf session!')
@@ -239,17 +239,17 @@ class BP_NetDecoder:
             # xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.V_to_C_params[layer], xe_v_sumc))
 
         # ----------------------------
-            xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0])))  # 除法 tanh(ve_v3c_pre_iter/2.0)
-            xe_tanh = tf.to_float(xe_tanh)
-            xe_tanh_temp = tf.sign(xe_tanh)  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-            xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-            xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.log(1e-8 + tf.abs(xe_tanh)))
-            xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img)
-            xe_product = tf.real(tf.exp(xe_sum_log_complex))  # xe_sum_log_real
-            xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7)
-            xe_pd_modified = tf.add(xe_product, xe_product_temp)
-            xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0])
-            xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.V_to_C_params[layer], xe_v_sumc))
+            xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0], name=format("truediv_xe_pre_2_%d" % layer)), name=format("to_double_%d" % layer)), name=format("xe_tanh1_%d" % layer))  # 除法 tanh(ve_v3c_pre_iter/2.0)
+            xe_tanh = tf.to_float(xe_tanh, name=format("xe_tanh2_%d" % layer))
+            xe_tanh_temp = tf.sign(xe_tanh, name=format("xe_tanh_temp_%d" % layer))  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
+            xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]), name=format("xe_sum_log_img_%d" % layer))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
+            xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.log(1e-8 + tf.abs(xe_tanh)), name=format("xe_sum_log_real_%d" % layer))
+            xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img, name=format("xe_sum_log_complex_%d" % layer))
+            xe_product = tf.real(tf.exp(xe_sum_log_complex), name=format("xe_product_%d" % layer))  # xe_sum_log_real
+            xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7, name=format("xe_product_temp_%d" % layer))
+            xe_pd_modified = tf.add(xe_product, xe_product_temp, name=format("xe_pd_modified_%d" % layer))
+            xe_v_sumc = tf.multiply(self.atanh(xe_pd_modified), [2.0], name=format("xe_v_sumc_%d" % layer))
+            xe_c_sumv = tf.add(xe_0, tf.sparse_tensor_dense_matmul(self.V_to_C_params[layer], xe_v_sumc), name=format("xe_c_sumv_%d" % layer))
 
         return xe_v_sumc, xe_c_sumv  # xe_v_sumc 是输出层，xe_c_sumv 是这一轮BP的输出，下一轮的输入
 
@@ -286,10 +286,10 @@ class BP_NetDecoder:
         # 还需要构建一段由 u_coded_bits 和 SNR 到 llr 的网络。
         # BP initialization
         # llr_into_bp_net = tf.placeholder(dtype=tf.float32, shape=[self.v_node_num, self.batch_size], name="llr_into_bp_net_tensor")  # 整个BP网络的输入
-        llr_into_bp_net = tf.Variable(np.ones([self.v_node_num, self.batch_size], dtype=np.float32))  # 建立了一个矩阵变量（576 * 5000)，576 是码元，5000是每次5000个码元为一个batch
-        xe_0 = tf.matmul(self.H_x_to_xe0, llr_into_bp_net)  # 横向edge初始化(H_x_to_xe0:shape=(2040, 576), llr_into_bp_net:shape=(576, 5000) => (2040, 5000)
-        xe_v2c_pre_iter = tf.Variable(np.ones([self.num_all_edges, self.batch_size], dtype=np.float32))  # the v->c messages of the previous iteration, shape=(2040, 5000)
-        xe_v2c_pre_iter_assign = xe_v2c_pre_iter.assign(xe_0)  # 将 xe_0 赋值给 ve_v2c_pre_iter_assign
+        llr_into_bp_net = tf.Variable(np.ones([self.v_node_num, self.batch_size], dtype=np.float32), name="llr_into_bp_net")  # 建立了一个矩阵变量（576 * 5000)，576 是码元，5000是每次5000个码元为一个batch
+        xe_0 = tf.matmul(self.H_x_to_xe0, llr_into_bp_net, name="xe_0")  # 横向edge初始化(H_x_to_xe0:shape=(2040, 576), llr_into_bp_net:shape=(576, 5000) => (2040, 5000)
+        xe_v2c_pre_iter = tf.Variable(np.ones([self.num_all_edges, self.batch_size], dtype=np.float32), name="xe_v2c_pre_iter")  # the v->c messages of the previous iteration, shape=(2040, 5000)
+        xe_v2c_pre_iter_assign = xe_v2c_pre_iter.assign(xe_0, name="xe_v2c_pre_iter_assign")  # 将 xe_0 赋值给 ve_v2c_pre_iter_assign
 
         xe_v_sumc, xe_c_sumv = self.multiple_bp_iteration(xe_v2c_pre_iter, xe_0)  # (2040, 5000), (2040, 2040), (2040, 2040), (2040, 5000)
         self.xe_v_sumc = xe_v_sumc
@@ -325,7 +325,7 @@ class BP_NetDecoder:
         # saver = tf.train.Saver()
         # save_dir = "model/bp_model/"
 
-        self.sess.run(self.xe_v2c_pre_iter_assign)  #
+        self.sess.run(self.xe_v2c_pre_iter_assign)  # BP 网络的第一层
         # for iter in range(0, bp_iter_num-1):
         #     self.sess.run(self.start_next_iteration)  # run start_next_iteration时表示当前一轮BP的输出
         y_dec = self.sess.run(self.dec_out)  # dec_out 则是最终输出层
@@ -371,22 +371,23 @@ class BP_NetDecoder:
 
         for SNR in SNRset:
             real_batch_size = batch_size
-            for i in range(200):  # 每一种SNR的训练轮数，原来是 20000
+            for i in range(0):  # 每一种SNR的训练轮数，原来是 20000
                 # 需要一个更新输入数据的过程
-                x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
+                x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR, ch_noise_sigma  = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
                 # --------------------------------------------------------------------------------------------
-                x = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: LLR})
-                y = self.sess.run(self.llr_into_bp_net)
+                # x = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: LLR})
+                # y = self.sess.run(self.llr_into_bp_net)
                 # z = self.llr_into_bp_net.eval(self.sess)
-                v = self.sess.run(self.sigmoid_out)
-                x2 = self.sess.run(self.bp_out_llr)
-                x3 = self.sess.run(self.xe_v_sumc)
+                # v = self.sess.run(self.sigmoid_out)
+                # x2 = self.sess.run(self.bp_out_llr)
+                # x3 = self.sess.run(self.xe_v_sumc)
                 # self.sess.run()  # 重新修改网络的输入为 llr_in
-                p = self.sess.run(self.cross_entropy, feed_dict={self.labels: u_coded_bits})
-                z = self.sess.run(self.train_step, feed_dict={self.llr_placeholder: LLR, self.labels: u_coded_bits})
+                # p = self.sess.run(self.cross_entropy, feed_dict={self.labels: u_coded_bits})
+                z = self.sess.run([self.llr_assign, self.train_step], feed_dict={self.llr_placeholder: LLR, self.labels: u_coded_bits})
+                # y = self.sess.run(self.llr_into_bp_net)
                 # x,y = self.sess.run([])
                 # -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out))
-                x1 = self.sess.run(tf.log(self.sigmoid_out))
+                # x1 = self.sess.run(tf.log(self.sigmoid_out))
                 pass
         # ------------- 保存训练好的神经网络 -----------------
         saver.save(self.sess, self.bp_net_save_dir + self.bp_model)

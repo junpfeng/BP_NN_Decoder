@@ -121,21 +121,24 @@ class NoiseIO:
             # 关闭文件管理器
             fin_cov_file.close()
             # output parts of the correlation function for check
-            cov_func = np.matmul(cov_1_2_mat, cov_1_2_mat)  # 矩阵乘法，计算协方差
+            self.cov_func = np.matmul(cov_1_2_mat, cov_1_2_mat)  # 矩阵乘法，计算协方差
             print('Correlation function of channel noise: ')
-            print(cov_func[0,0:10])
+            print(self.cov_func[0,0:10])
             # 放置一个 placeholder -- 噪声矩阵
-            self.awgn_noise = tf.placeholder(dtype=tf.float32, shape=[None, blk_len])
-            self.noise_tf = tf.matmul(self.awgn_noise, cov_1_2_mat)  # 这边建立了一个产生噪声的网络
+            # 建立一个独立的图 g1
+            # self.g1 = tf.Graph()
+            # with self.g1.as_default():
+            #     self.awgn_noise = tf.placeholder(dtype=tf.float32, shape=[None, blk_len])
+            #     self.noise_tf = tf.matmul(self.awgn_noise, cov_1_2_mat)  # 这边建立了一个产生噪声的网络
             # 开启一个会话
-            self.sess = tf.Session()
-
+            # self.sess = tf.Session(graph=self.g1)
 
     def __del__(self):
         if self.read_from_file:
             self.fin_noise.close()
         else:
-            self.sess.close()
+            # self.sess.close()
+            pass
 
     def reset_noise_generator(self): # this function resets the file pointer or the rng generator to generate the same noise data
         if self.read_from_file:
@@ -145,12 +148,14 @@ class NoiseIO:
 
 
     def generate_noise(self, batch_size):
-        if self.read_from_file:
+        if self.read_from_file:  # 是指第三方提供的噪声文件
             noise = np.fromfile(self.fin_noise, np.float32, batch_size * self.blk_len)
             noise = np.reshape(noise, [batch_size, self.blk_len])
-        else:
+        else:   # 使用 matlab 提供的噪声文件
             noise_awgn = self.rng.randn(batch_size, self.blk_len)  # 产生均值为0，方差为1的随机数矩阵
             noise_awgn = noise_awgn.astype(np.float32)
-            noise = self.sess.run(self.noise_tf, feed_dict={self.awgn_noise: noise_awgn})  # __init__ 里面建立了一个产生相关噪声的网络，然后输出相关噪声
-
+            # 感觉没必要用图，就直接计算结果
+            noise = np.matmul(noise_awgn, self.cov_func)
+            # with tf.Session(graph=self.g1) as sess:
+            #     noise = sess.run(self.noise_tf, feed_dict={self.awgn_noise: noise_awgn})  # __init__ 里面建立了一个产生相关噪声的网络，然后输出相关噪声
         return noise

@@ -14,16 +14,16 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        # self.N_code = 576
-        # self.K_code = 432
+        self.N_code = 576
+        self.K_code = 432
         # self.N_code = 576
         # self.K_code = 480
         # self.N_code = 240
         # self.K_code = 120
         # self.N_code = 6
         # self.K_code = 3
-        self.N_code = 16
-        self.K_code = 8
+        # self.N_code = 16
+        # self.K_code = 8
         # self.N_code = 96
         # self.K_code = 48
         # self.K_code = 45
@@ -44,11 +44,14 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         # BP decoding
         self.BP_iter_nums_gen_data = np.array([5])     # the number of BP iterations
         # self.BP_iter_nums_simu = np.array([5,5])  # [5,5]  % BP（5）-CNN-BP（5）
-        self.BP_iter_nums_simu = np.array([5])  # np.array([5, 5]) # 配合下面cnn_net_number # [5,5]  % BP（5）-CNN-BP（5）
+        self.BP_iter_nums_simu = np.array([5, 5])  # np.array([5, 5]) # 配合下面cnn_net_number # [5,5]  % BP（5）-CNN-BP（5）
 
         # cnn config
         self.currently_trained_net_id = 0  # denote the cnn denoiser which is in training currently
-        self.cnn_net_number = 0  # 1  # 当需要使用cnn时，设为1 ，the number of cnn denoisers in final simulation
+
+        # 表示整个网络有多少个小的独立BP网络拼接而成 0表示1个，1表示2个
+        self.cnn_net_number = 1  # 1  # 当需要使用cnn时，设为1 ，the number of cnn denoisers in final simulation
+
         self.layer_num = 4  # the number of cnn layers
         self.filter_sizes = np.array([9, 3, 3, 15])  # the convolutional filter size. The length of this list should be equal to the layer number
         self.feature_map_nums = np.array([64, 32, 16, 1])  # the last element must be 1
@@ -172,7 +175,7 @@ class NetConfig:
 
         self.model_folder = "./model/"
         self.residual_noise_property_folder = self.model_folder
-        self.use_conv_net = False
+        self.use_conv_net = True
 
 
 class TrainingConfig:
@@ -189,7 +192,7 @@ class TrainingConfig:
         # training data information
         self.training_sample_num = 1999200 # 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
         # training parameters
-        self.epoch_num = 20000   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
+        self.epoch_num = 200000   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
         self.training_minibatch_size = 1400 # 1400  # one mini-batch contains equal amount of data generated under different CSNR.
         self.SNR_set_gen_data = top_config.SNR_set_gen_data
         # the data in the feature file is the network input.

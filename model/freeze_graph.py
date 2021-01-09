@@ -9,8 +9,8 @@
 #     tf.train.write_graph(g,".", "graph.pb", False)
 import tensorflow as tf
 
-ckpt_path = "./bp_model/bp_model.ckpt.meta"
-out_graph_name = "./bp_model/bp_model.pbtxt"
+ckpt_path = "./bp_model/576_432/bp_model.ckpt.meta"
+out_graph_name = "./bp_model/576_432/bp_model.pbtxt"
 
 with tf.Session() as sess:
     _ = tf.train.import_meta_graph(ckpt_path, clear_devices=True)

@@ -147,7 +147,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
             print('Batch %d in total %d batches.' % (ik, int(max_batches)), end=' ')
             if ik == max_batches - 1 and residual_times != 0:  # 如果遍历结束，并且residual_times != 0 ，在这里默认是 == 0
                 real_batch_size = residual_times
-            x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io, rng)  #
+            x_bits, u_coded_bits, s_mod, ch_noise, y_receive, LLR, ch_noise_sigma = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io, rng)  #
             # ------------------------------------------------------------
             noise_power = np.mean(np.square(ch_noise))
             practical_snr = 10*np.log10(1 / (noise_power * 2.0))
@@ -165,6 +165,7 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
                     else:  # 默认进入else
                         res_noise_power = conv_net[iter].get_res_noise_power(model_id, SNRset).get(np.float32(SNR))  # 计算噪声功率，这个残差噪声功率貌似是存储在文件中读取的
                         LLR = denoising_and_calc_LLR_awgn(res_noise_power, y_receive, u_BP_decoded, denoise_net_in[iter], denoise_net_out[iter], sess)  # 使用神经网络译码进行噪声估计，并得到新一轮BP的LLR输入
+
                 output_x = linear_code.dec_src_bits(u_BP_decoded)  # 前k位是编码之前的信息位
                 bit_errs_iter[iter] += np.sum(output_x != x_bits)  # 统计比特不同的熟练（对应位比特不同记为1，然后累加计算有多少个不同比特位）
                 # 同一个码字会记录两次误比特率，一次是只使用BP，还有一次是BP+CNN+BP。一般来说，经过BP+CNN+BP之后的误比特率要比只经过BP要好。
@@ -397,8 +398,9 @@ def train_bp_network(linear_code, top_config, net_config, batch_size):
     ## load configurations from top_config
     SNRset = top_config.eval_SNRs
     bp_iter_num = top_config.BP_iter_nums_simu
-    noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file_simu, rng_seed=0)
-    ch_noise_normalize = noise_io.generate_noise(batch_size)  # 生成均值为0，方差为1的高斯随机噪声矩阵（相干性设为0）
+    # noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file_simu, rng_seed=0)
+    # ch_noise_normalize = noise_io.generate_noise(batch_size)  # 生成均值为0，方差为1的高斯随机噪声矩阵（相干性设为0）
+    ch_noise_normalize = 0
     denoising_net_num = top_config.cnn_net_number
     # model_id = top_config.model_id
 

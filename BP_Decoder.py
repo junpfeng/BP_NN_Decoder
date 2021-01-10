@@ -109,6 +109,7 @@ class BP_NetDecoder:
         # ---------- BP 网络的参数 -------------
         self.V_to_C_params = {}
         self.C_to_V_params = {}
+        self.C_to_V_params_img = {}
         self.BP_layers = 10
         self.xe_v_sumc = {}
 
@@ -122,9 +123,12 @@ class BP_NetDecoder:
             tmp[1] = j[idx]
             indices.append(tmp)
         for layer in range(self.BP_layers):
-            values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
+            values = tf.Variable(np.ones(len(i)), dtype=tf.float32, name=format("c_to_v_sparse_var_%d" % layer))
             self.C_to_V_params[layer] = tf.SparseTensor(indices=indices, values=values
                                                         , dense_shape=self.H_sumC_to_V.shape)
+            values_img = tf.Variable(np.ones(len(i)), dtype=tf.float32, name=format("c_to_v_sparse_var_img_%d" % layer))
+            self.C_to_V_params_img[layer] = tf.SparseTensor(indices=indices, values=values_img
+                                                            , dense_shape=self.H_sumC_to_V.shape)
 
         i, j = np.nonzero(self.H_sumV_to_C)
         indices = []
@@ -134,7 +138,7 @@ class BP_NetDecoder:
             tmp[1] = j[idx]
             indices.append(tmp)
         for layer in range(self.BP_layers):
-            values = tf.Variable(np.ones(len(i)), dtype=tf.float32)
+            values = tf.Variable(np.ones(len(i)), dtype=tf.float32, name=format("v_to_c_sparse_var_%d" % layer))
             self.V_to_C_params[layer] = tf.SparseTensor(indices=indices, values=values
                                                         , dense_shape=self.H_sumV_to_C.shape)
 
@@ -150,9 +154,9 @@ class BP_NetDecoder:
         # -----------------带训练参数的BP译码网络的参数矩阵--------------
         else:  # 之后考虑为每个 H_sumC_to_V 和 H_sumV_to_C 单独进行变量随机化
             # ---------改为 tf.Variable ----------
-            self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32)
+            self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32, name="H_x_to_xe0")
             # self.H_sumV_to_C = tf.Variable(self.H_sumV_to_C, dtype=tf.float32)
-            self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32)
+            self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32, name="H_xe_v_sumc_to_y")
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out, self.bp_out_llr = self.build_trained_bp_network()
         # -------------------------------------------------------------
         # -------------------------------------------------------------
@@ -242,8 +246,8 @@ class BP_NetDecoder:
             xe_tanh = tf.tanh(tf.to_double(tf.truediv(xe_v2c_pre_iter, [2.0], name=format("truediv_xe_pre_2_%d" % layer)), name=format("to_double_%d" % layer)), name=format("xe_tanh1_%d" % layer))  # 除法 tanh(ve_v3c_pre_iter/2.0)
             xe_tanh = tf.to_float(xe_tanh, name=format("xe_tanh2_%d" % layer))
             xe_tanh_temp = tf.sign(xe_tanh, name=format("xe_tanh_temp_%d" % layer))  # 这一步的sign的作用，是将值重新变为-1，0，1这三种
-            xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926]), name=format("xe_sum_log_img_%d" % layer))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
-            xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.log(1e-8 + tf.abs(xe_tanh)), name=format("xe_sum_log_real_%d" % layer))
+            xe_sum_log_img = tf.sparse_tensor_dense_matmul(self.C_to_V_params_img[layer], tf.multiply(tf.truediv((1 - xe_tanh_temp), [2.0]), [3.1415926], name=format("multiply_in_sparse_%d" % layer)), name=format("xe_sum_log_img_%d" % layer))  # tf.multiply 矩阵按元素相乘, tf.matmul 则是标准的矩阵相乘
+            xe_sum_log_real = tf.sparse_tensor_dense_matmul(self.C_to_V_params[layer], tf.log(1e-8 + tf.abs(xe_tanh), name=format("log_in_sparse_%d" % layer)), name=format("xe_sum_log_real_%d" % layer))
             xe_sum_log_complex = tf.complex(xe_sum_log_real, xe_sum_log_img, name=format("xe_sum_log_complex_%d" % layer))
             xe_product = tf.real(tf.exp(xe_sum_log_complex), name=format("xe_product_%d" % layer))  # xe_sum_log_real
             xe_product_temp = tf.multiply(tf.sign(xe_product), -2e-7, name=format("xe_product_temp_%d" % layer))

@@ -36,5 +36,6 @@ plt.grid(True, which="both", ls="-")
 plt.xlabel("SNR")
 plt.ylabel("BER")
 plt.legend()  # 启用图例（还可以设置图例的位置等等）
-
+plt.xlim(xmin=-0.5, xmax=3.5)
+plt.ylim(ymin=10e-3, ymax=0)
 plt.show()

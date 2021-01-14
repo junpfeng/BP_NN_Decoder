@@ -1,1 +1,2 @@
-python -m tensorflow.python.tools.freeze_graph --input_checkpoint="model/bp_model/576_432/bp_model.ckpt"  --input_binary=false  --output_graph=frozen.pb  --input_graph=model/bp_model/576_432/bp_model.pbtxt --output_node_names=output_node_tanspose
+python -m tensorflow.python.tools.freeze_graph --input_checkpoint="model/bp_model/576_432/bp_model.ckpt"  --input_binary=false  --output_graph=frozen.pb  --input_graph=model/bp_model/576_432/bp_model.pbtxt --output_node_names=cross_entroy
+# output_node_tanspose

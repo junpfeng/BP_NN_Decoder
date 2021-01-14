@@ -157,14 +157,14 @@ class BP_NetDecoder:
             self.H_x_to_xe0 = tf.Variable(self.H_x_to_xe0, dtype=tf.float32, name="H_x_to_xe0")
             # self.H_sumV_to_C = tf.Variable(self.H_sumV_to_C, dtype=tf.float32)
             self.H_xe_v_sumc_to_y = tf.Variable(self.H_xe_v_sumc_to_y, dtype=tf.float32, name="H_xe_v_sumc_to_y")
-            self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out, self.bp_out_llr = self.build_trained_bp_network()
+            self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.logits, self.bp_out_llr = self.build_trained_bp_network()
         # -------------------------------------------------------------
         # -------------------------------------------------------------
         self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_placeholder))  # transpose the llr matrix to adapt to the matrix operation in BP net decoder
         # self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_into_bp_net))  # transpose the llr matrix to adapt to the matrix operation in BP net decoder.
 
         # self.cross_entropy = -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out), 1)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
-        self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.sigmoid_out)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
+        self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.logits, name="cross_entroy")  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
         self.train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entropy)
 
         self.sess = tf.Session(graph=tf.get_default_graph())  # open a session
@@ -304,11 +304,12 @@ class BP_NetDecoder:
         start_next_iteration = 0
         # get the final marginal probability and decoded results
         bp_out_llr = tf.add(llr_into_bp_net, tf.matmul(self.H_xe_v_sumc_to_y, xe_v_sumc))  # H_xe_sumc_to_y 是输出层的转换矩阵，不需要训练，xe_v_sumc 是纵向排列的edge
-        sigmoid_out = tf.sigmoid(tf.transpose(bp_out_llr))
+        # sigmoid_out = tf.sigmoid(tf.transpose(bp_out_llr))
+        logits = tf.transpose(bp_out_llr)  # logits 替换上面的 sigmoid_out
         # sigmoid_out = tf.sigmoid(bp_out_llr)
         dec_out = tf.transpose(tf.floordiv(1-tf.to_int32(tf.sign(bp_out_llr)), 2), name="output_node_tanspose")
 
-        return llr_into_bp_net, xe_0, xe_v2c_pre_iter_assign, start_next_iteration, dec_out, sigmoid_out, bp_out_llr
+        return llr_into_bp_net, xe_0, xe_v2c_pre_iter_assign, start_next_iteration, dec_out, logits, bp_out_llr
 
     '''
     python -m tensorflow.python.tools.freeze_graph --input_checkpoint=model/bp_model/bp_model.ckpt --input_binary=false --output_graph=model/bp_model/frozen.pb --input_graph=model/bp_model/bp_model.pbtxt --output_node_names=output_node_tanspose
@@ -377,7 +378,7 @@ class BP_NetDecoder:
             real_batch_size = batch_size
             for i in range(0):  # 每一种SNR的训练轮数，原来是 20000
                 # 需要一个更新输入数据的过程
-                x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR, ch_noise_sigma  = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
+                x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR, ch_noise_sigma = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
                 # --------------------------------------------------------------------------------------------
                 # x = self.sess.run(self.llr_assign, feed_dict={self.llr_placeholder: LLR})
                 # y = self.sess.run(self.llr_into_bp_net)

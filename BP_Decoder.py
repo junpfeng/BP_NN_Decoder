@@ -89,7 +89,7 @@ class BP_NetDecoder:
     def __init__(self, H, batch_size):  # 校验矩阵，外部传入
 
         self.train_bp_network = True
-        self.use_train_bp_net = False
+        self.use_train_bp_net = True
         # 设置tf 初始化的模式
         self.initializer = tf.truncated_normal_initializer(mean=1, stddev=0.1)
         _, self.v_node_num = np.shape(H)  #  获取变量节点长度（即码元的长度 576）
@@ -165,7 +165,7 @@ class BP_NetDecoder:
 
         # self.cross_entropy = -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out), 1)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
         self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.logits, name="cross_entroy")  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
-        self.train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entropy)
+        self.train_step = tf.train.AdamOptimizer(1e-5).minimize(self.cross_entropy)
 
         self.sess = tf.Session(graph=tf.get_default_graph())  # open a session
         # ---- tmp print --------------
@@ -176,7 +176,7 @@ class BP_NetDecoder:
 
         # 恢复已经训练过的 bp_net 参数
         self.bp_net_save_dir = format("model/bp_model/%s_%s/" % (top_config.N_code, top_config.K_code))
-        self.bp_model = "bp_model.ckpt"
+        self.bp_model = "bp_model.ckpt_10000"
         # 如果已经训练过了，并且需要训练，就先加载之前的参数
         if self.use_train_bp_net and os.path.isfile(self.bp_net_save_dir + self.bp_model + ".meta"):
             saver = tf.train.Saver()
@@ -371,12 +371,12 @@ class BP_NetDecoder:
         noise_io = DataIO.NoiseIO(top_config.N_code, False, None, top_config.cov_1_2_file)
 
         # 尝试保存网络
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(max_to_keep=20)
         G_matrix = linear_code.G_matrix  # 用于产生 u_coded_bits 样本的生成矩阵
 
-        for SNR in SNRset:
-            real_batch_size = batch_size
-            for i in range(0):  # 每一种SNR的训练轮数，原来是 20000
+        for i in range(500):  # 每一种SNR的训练轮数，原来是 20000
+            for SNR in SNRset:
+                real_batch_size = batch_size
                 # 需要一个更新输入数据的过程
                 x_bits, u_coded_bits, s_mod, channel_noise, y_receive, LLR, ch_noise_sigma = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
                 # --------------------------------------------------------------------------------------------
@@ -394,6 +394,10 @@ class BP_NetDecoder:
                 # -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out))
                 # x1 = self.sess.run(tf.log(self.sigmoid_out))
                 pass
+            # if 0 == i % 5000 and 0 != i:
+            #     saver.save(self.sess, self.bp_net_save_dir + self.bp_model + format("_%d" % i))
+            #     print("this num %d epo" % i)
+
         # ------------- 保存训练好的神经网络 -----------------
         saver.save(self.sess, self.bp_net_save_dir + self.bp_model)
         print(self.sess.run(tf.sparse.to_dense(self.V_to_C_params[0])))

@@ -1,6 +1,7 @@
 .idea/*
 __pycache__/*
 *.ckpt.*
+*.ckpt_*
 *.dat
 *.pb*
 checkpoint

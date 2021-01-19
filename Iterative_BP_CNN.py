@@ -353,7 +353,7 @@ def analyze_residual_noise(linear_code, top_config, net_config, simutimes, batch
             print("Batch id: %d" % ik)
             if ik == max_batches - 1 and residual_times != 0:
                 real_batch_size = residual_times
-            x_bits, _, s_mod, channel_noise, y_receive, LLR = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
+            x_bits, _, s_mod, channel_noise, y_receive, LLR, _ = lbc.encode_and_transmission(G_matrix, SNR, real_batch_size, noise_io)
             # x_bits 随机生成的发送端码元，u_coded_bits 对x_bits做纠错编码后的码元，s_mod 对u_coded_bits做BPSK调制后的码元，ch_noise 信道噪声，y_recive 接收端接收到的信号，LLR 对数似然比
             for iter in range(0, net_id_tested+1):
                 # BP decoding，astype：类型转为float32

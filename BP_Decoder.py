@@ -90,6 +90,7 @@ class BP_NetDecoder:
 
         self.train_bp_network = True
         self.use_train_bp_net = True
+        self.use_cnn_res_noise = False
         # 设置tf 初始化的模式
         self.initializer = tf.truncated_normal_initializer(mean=1, stddev=0.1)
         _, self.v_node_num = np.shape(H)  #  获取变量节点长度（即码元的长度 576）

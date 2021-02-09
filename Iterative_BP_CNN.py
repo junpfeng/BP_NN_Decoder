@@ -162,10 +162,17 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
                     if top_config.update_llr_with_epdf:
                         prob = conv_net[iter].get_res_noise_pdf(model_id).get(np.float32(SNR))
                         LLR = denoising_and_calc_LLR_epdf(prob, y_receive, u_BP_decoded, denoise_net_in[iter], denoise_net_out[iter], sess)
-                    else:  # 默认进入else
+                    elif bp_decoder.use_cnn_res_noise:  # 默认进入else
                         res_noise_power = conv_net[iter].get_res_noise_power(model_id, SNRset).get(np.float32(SNR))  # 计算噪声功率，这个残差噪声功率貌似是存储在文件中读取的
                         LLR = denoising_and_calc_LLR_awgn(res_noise_power, y_receive, u_BP_decoded, denoise_net_in[iter], denoise_net_out[iter], sess)  # 使用神经网络译码进行噪声估计，并得到新一轮BP的LLR输入
-
+                    else:
+                        res_noise_power = conv_net[iter].get_res_noise_power(model_id, SNRset).get(np.float32(SNR))  # 计算噪声功率，这个残差噪声功率貌似是存储在文件中读取的
+                        LLR = denoising_and_calc_LLR_awgn(res_noise_power, y_receive, u_BP_decoded, denoise_net_in[iter], denoise_net_out[iter], sess)  # 使用神经网络译码进行噪声估计，并得到新一轮BP的LLR输入
+                        noise_after_cnn = y_receive - (u_BP_decoded * (-2) + 1)
+                        # noise_after_cnn = sess.run(net_out, feed_dict={net_in: noise_before_cnn})
+                        # calculate the LLR for next BP decoding
+                        s_mod_plus_res_noise = y_receive - noise_after_cnn
+                        LLR = s_mod_plus_res_noise * 2.0 / res_noise_power
                 output_x = linear_code.dec_src_bits(u_BP_decoded)  # 前k位是编码之前的信息位
                 bit_errs_iter[iter] += np.sum(output_x != x_bits)  # 统计比特不同的熟练（对应位比特不同记为1，然后累加计算有多少个不同比特位）
                 # 同一个码字会记录两次误比特率，一次是只使用BP，还有一次是BP+CNN+BP。一般来说，经过BP+CNN+BP之后的误比特率要比只经过BP要好。

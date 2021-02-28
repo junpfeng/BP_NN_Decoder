@@ -11,20 +11,22 @@ from matplotlib import pyplot as plt
 
 fig, ax = plt.subplots()
 
-N = 16
-K = 8
-BP_iter_num = 5
+N = 576
+K = 432
+BP_iter_num = 50
 
-list_BP_iter_num = [10, 20, 40, 50, 60]
+# list_BP_iter_num = [10, 20, 40, 50, 60] #
+list_BP_iter_num = [5, 10, 20, 40]
 # 线条配合形状，构建6种不同图例
 list_marker = ["", "", "", "", "o", "."]
 list_line_style = ['-', '--', '-.', ':', '-', '-']
 
-for i in range(5):
+for i in range(4):
     BP_iter_num = list_BP_iter_num[i]
     marker = list_marker[i]
     linestyle = list_line_style[i]
-    plot_file = format("model/data_back_up/BER(%s_%s)_BP(%s).txt" % (N, K, BP_iter_num))
+    # plot_file = format("model/data_back_up/BER(%s_%s)_BP(%s).txt" % (N, K, BP_iter_num))
+    plot_file = format("model/bp_model/plot_BPDNN/BER(%s_%s)_BP(%s)_train500.txt" % (N, K, BP_iter_num))
 
     plot_data = np.loadtxt(plot_file, dtype=np.float32)
     x = plot_data[:, 0]
@@ -36,6 +38,6 @@ plt.grid(True, which="both", ls="-")
 plt.xlabel("SNR")
 plt.ylabel("BER")
 plt.legend()  # 启用图例（还可以设置图例的位置等等）
-plt.xlim(xmin=-0.5, xmax=3.5)
-plt.ylim(ymin=10e-3, ymax=0)
+#plt.xlim(xmin=-0.5, xmax=3.5)
+#plt.ylim(ymin=10e-3, ymax=0)
 plt.show()

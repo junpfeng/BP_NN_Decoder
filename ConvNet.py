@@ -77,7 +77,7 @@ class ConvNet:
                 save_dict[self.bias_name[layer]] = self.bias[layer]
             model_id_str = np.array2string(model_id, separator='_', formatter={'int': lambda d: "%d" % d})
             model_id_str = model_id_str[1:(len(model_id_str)-1)]
-            model_folder = format("%snetid%d_model%s/%s_%s" %
+            model_folder = format("%s/netid%d_model%s/%s_%s" %
                                   (self.net_config.model_folder, self.net_id, model_id_str, self.train_config.N_code, self.train_config.K_code))
             restore_model_name = format("%s/model.ckpt" % model_folder)
             saver_restore = tf.train.Saver(save_dict)
@@ -98,7 +98,7 @@ class ConvNet:
 
         model_id_str = np.array2string(model_id, separator='_', formatter={'int': lambda d: "%d" % d})
         model_id_str = model_id_str[1:(len(model_id_str) - 1)]
-        save_model_folder = format("%snetid%d_model%s/%s_%s" %
+        save_model_folder = format("%s/netid%d_model%s/%s_%s" %
                                    (self.net_config.model_folder, self.net_id, model_id_str, self.train_config.N_code, self.train_config.K_code))
         # model(a_b_c) means the 3rd network model indexed by c is trained based on the 1st network model indexed by a and the 2nd network model indexed by b. a,b,
         # c could be the same.
@@ -110,7 +110,7 @@ class ConvNet:
         saver_save.save(sess_in, save_model_name)
         print("Save %d layers.\n" % self.net_config.save_layers)
 
-    def test_network_online(self, dataio, x_in, y_label, orig_loss, loss_after_training, calc_org_loss, sess_in):
+    def test_network_online(self, dataio, x_in, y_label, orig_loss, loss_after_training, calc_org_loss, sess_in, BP_layers=20):
         # this function is used to test the network loss online when training network
         remain_samples = self.train_config.test_sample_num
         load_batch_size = self.train_config.test_minibatch_size
@@ -157,7 +157,7 @@ class ConvNet:
 
         return norm_test
 
-    def train_network(self, model_id):
+    def train_network(self, model_id, BP_layers):
         # 开始计时
         start = datetime.datetime.now()
         # 定义一个数据训练 IO 对象
@@ -166,12 +166,22 @@ class ConvNet:
         self.training_feature_file = format("./TrainingData/EstNoise_before_cnn%d.dat" % (self.currently_trained_net_id))
         self.training_label_file = "./TrainingData/RealNoise.dat"
         """
-        dataio = DataIO.TrainingDataIO(self.train_config.training_feature_file, self.train_config.training_label_file,
+        training_feature_file = self.train_config.training_feature_folder + format("BP%s/" % (str(BP_layers))) \
+                                + self.train_config.training_feature_file
+        training_label_file = self.train_config.training_label_folder + format("BP%s/" % (str(BP_layers)))\
+                              + self.train_config.training_label_file
+
+        dataio = DataIO.TrainingDataIO(training_feature_file, training_label_file,
                                        self.train_config.training_sample_num, self.net_config.feature_length,
                                        self.net_config.label_length)  # construct class for loading data
 
+        test_feature_file = self.train_config.test_feature_folder + format("BP%s/" % (str(BP_layers))) \
+                            + self.train_config.test_feature_file
+        test_label_file = self.train_config.test_label_folder + format("BP%s/" % (str(BP_layers)))\
+                          + self.train_config.test_label_file
+
         # 定义一个测试数据 IO 对象
-        dataio_test = DataIO.TestDataIO(self.train_config.test_feature_file, self.train_config.test_label_file,
+        dataio_test = DataIO.TestDataIO(test_feature_file, test_label_file,
                                    self.train_config.test_sample_num, self.net_config.feature_length,
                                    self.net_config.label_length)  # construct class for loading data
 
@@ -209,7 +219,7 @@ class ConvNet:
         self.restore_network_with_model_id(sess, self.net_config.restore_layers, model_id)
 
         # calculate the loss before training and assign it to min_loss
-        min_loss, ave_org_loss = self.test_network_online(dataio_test, x_in, y_label, orig_loss_for_test, test_loss, True, sess)
+        min_loss, ave_org_loss = self.test_network_online(dataio_test, x_in, y_label, orig_loss_for_test, test_loss, True, sess, BP_layers)
 
         self.save_network_temporarily(sess)
         # Train
@@ -232,6 +242,7 @@ class ConvNet:
                 else:
                     count += 1
                     if count >= 8:  # no patience
+                        print("epoch=%d, tran_config.epoch=%d" % (epoch, self.train_config.epoch_num))
                         break
             # ************************************  ？？？ ***************************
 
@@ -241,7 +252,7 @@ class ConvNet:
         print('Final minimum loss: %f' % min_loss)
         print('Used time for training: %ds'% (end-start).seconds)
 
-    def get_res_noise_power(self, model_id, SNRset=np.zeros(0)):
+    def get_res_noise_power(self, model_id, SNRset=np.zeros(0), N=16, K=8, BP_layers=10):
         """
         用于将BP译码获取的LLR转为残差噪声
         :param model_id: 模型编号索引
@@ -252,7 +263,13 @@ class ConvNet:
             # if len(model_id) > self.net_id+1, discard redundant parts.
             model_id_str = np.array2string(model_id[0:(self.net_id+1)], separator='_', formatter={'int': lambda d: "%d" % d})
             model_id_str = model_id_str[1:(len(model_id_str)-1)]
-            residual_noise_power_file = format("%sresidual_noise_property_netid%d_model%s.txt" % (self.net_config.residual_noise_property_folder, self.net_id, model_id_str))
+            # residual_noise_power_file = format("%s/residual_noise_property_netid%d_model%s.txt" % (self.net_config.residual_noise_property_folder, self.net_id, model_id_str))
+            residual_noise_power_file = format("%s/bp_model/%s_%s/BP%s/%s_%s_residual_noise_property_netid%d_model%s.txt" %
+                                               (self.net_config.residual_noise_property_folder, str(N), str(K), str(BP_layers), str(N), str(K), self.net_id, model_id_str))
+
+            # residual_noise_power_file = format("%s/bp_model/16_8/BP20/%s_%s_residual_noise_property_netid%d_model%s.txt"
+            #                         % (self.residual_noise_property_folder, N, _, bp_decoder.BP_layers, N, _,
+            #                            net_id_tested, model_id_str))
             data = np.loadtxt(residual_noise_power_file, dtype=np.float32)
             shape_data = np.shape(data)
             if np.size(shape_data) == 1:
@@ -263,12 +280,15 @@ class ConvNet:
                     self.res_noise_power_dict[data[i, 0]] = data[i, 1:shape_data[1]]
         return self.res_noise_power_dict
 
-    def get_res_noise_pdf(self, model_id):
+    def get_res_noise_pdf(self, model_id,N=16, K=8, BP_layers=10):
         if self.res_noise_pdf_dict.__len__() == 0:
             # if len(model_id) > self.net_id+1, discard redundant parts.
             model_id_str = np.array2string(model_id[0:(self.net_id+1)], separator='_', formatter={'int': lambda d: "%d" % d})
             model_id_str = model_id_str[1:(len(model_id_str)-1)]
-            residual_noise_pdf_file = format("%sresidual_noise_property_netid%d_model%s.txt" % (self.net_config.residual_noise_property_folder, self.net_id, model_id_str))
+            # residual_noise_pdf_file = format("%sresidual_noise_property_netid%d_model%s.txt" % (self.net_config.residual_noise_property_folder, self.net_id, model_id_str))
+            residual_noise_pdf_file = format("%s/bp_model/%s_%s/BP%s/%s_%s_residual_noise_property_netid%d_model%s.txt" %
+                (self.net_config.residual_noise_property_folder, str(N), str(K), str(BP_layers), str(N), str(K),
+                 self.net_id, model_id_str))
             data = np.loadtxt(residual_noise_pdf_file, dtype=np.float32)
             shape_data = np.shape(data)
             if np.size(shape_data) == 1:

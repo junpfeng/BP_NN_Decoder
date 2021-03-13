@@ -1,0 +1,10 @@
+LDPC_MET (128,64) Code: ML Simulation Results 
+Channel: AWGN 
+Modulation: BPSK 
+
+Eb/N0 (dB)   FER     error frames   total frames
+  1.50,   0.0479846,     50,            1024
+  2.00,   0.0084860,     50,            5892
+  2.50,   0.0017855,     50,           28002
+  3.00,   0.0002976,     50,          167987
+  3.50,   3.85811e-05,   50,         1295970

@@ -1,0 +1,11 @@
+ccsds (128,64) Code: ML Simulation Results 
+Channel: AWGN 
+Modulation: BPSK 
+
+Eb/N0 (dB)   FER     error frames   total frames
+  1.00,   1.064e-01,     50,             470
+  1.50,   3.397e-02,     50,            1472
+  2.00,   8.773e-03,     50,            5699
+  2.50,   1.168e-03,     50,           42801
+  3.00,   1.321e-04,     50,          378633
+  3.50,   1.022e-05,     50,         4891989

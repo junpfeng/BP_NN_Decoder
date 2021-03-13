@@ -14,22 +14,24 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        self.N_code = 576
-        self.K_code = 432
+        # self.N_code = 576
+        # self.K_code = 432
         # self.N_code = 576
         # self.K_code = 480
         # self.N_code = 240
         # self.K_code = 120
         # self.N_code = 6
         # self.K_code = 3
-        # self.N_code = 16
-        # self.K_code = 8
+        self.N_code = 16
+        self.K_code = 8
         # self.N_code = 96
         # self.K_code = 48
         # self.K_code = 45
         # self.N_code = 63
         # self.N_code = 128
         # self.K_code = 64
+        # self.N_code = 32
+        # self.K_code = 16
         self.file_G = format('./LDPC_matrix/LDPC_gen_mat_%d_%d.txt' % (self.N_code, self.K_code))
         self.file_H = format('./LDPC_matrix/LDPC_chk_mat_%d_%d.txt' % (self.N_code, self.K_code))
 
@@ -64,12 +66,31 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.normality_lambda = 1
 
         if self.N_code == 16 and self.K_code == 8:
-            self.SNR_set_gen_data = np.array([-3, -2.5, -2, -1.5, -1, -0.5, 0], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
-            self.eval_SNRs = np.array([-3, -2.5, -2, -1.5, -1, -0.5, 0], np.float32)
-        else:
             self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
-            self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)  # 这个修改和 SNR_set_gen_data 是匹配的
+            self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)
+            # 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6,
+            # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13
+            # self.SNR_set_gen_data = np.array([10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]
+            #                                   # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13,
+            #                                   # 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19, 19.5, 20]
+            #                                 , dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            # self.eval_SNRs = np.array([10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]
+            #                            # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13,
+            #                            # 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19, 19.5, 20]
+            #                           , np.float32)
+        else:
+            # self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]
+            #                                  , dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            # self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]
+            #                           , np.float32)
+            self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3]
+                                             , dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3]
+                                      , np.float32)
+            # self.SNR_set_gen_data = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
+            # self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)  # 这个修改和 SNR_set_gen_data 是匹配的
 
+        self.SNR_set_origin_size = 7  # 这个是默认的信噪比集合的长度 7
         self.same_model_all_nets = False  # denote whether the same model parameters for all denoising networks. If true and cnn_net_number > 1, we are testing the performance
         #  of iteration between a BP and a denoising network.
         self.analyze_res_noise = True
@@ -173,9 +194,9 @@ class NetConfig:
         self.feature_map_nums = top_config.feature_map_nums
         self.layer_num = top_config.layer_num
 
-        self.model_folder = "./model/"
+        self.model_folder = "./model"
         self.residual_noise_property_folder = self.model_folder
-        self.use_conv_net = True
+        self.use_conv_net = True # True
 
 
 class TrainingConfig:
@@ -190,25 +211,27 @@ class TrainingConfig:
         self.currently_trained_net_id = top_config.currently_trained_net_id
 
         # training data information
-        self.training_sample_num = 1999200 # 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
+        self.training_sample_num = 1999200 // top_config.SNR_set_origin_size * np.size(top_config.SNR_set_gen_data) # 1999200    # the number of training samples. It should be a multiple of training_minibatch_size
         # training parameters
         self.epoch_num = 200000   # 200000  # the number of training iterations.本来是训练200000轮，为了提高速度，改成1轮
-        self.training_minibatch_size = 1400 # 1400  # one mini-batch contains equal amount of data generated under different CSNR.
+        self.training_minibatch_size = 2800 // top_config.SNR_set_origin_size * np.size(top_config.SNR_set_gen_data)
+        # 1400  # one mini-batch contains equal amount of data generated under different CSNR.
         self.SNR_set_gen_data = top_config.SNR_set_gen_data
         # the data in the feature file is the network input.
         # the data in the label file is the ground truth.
-        self.training_feature_file = format("./TrainingData/%s_%s/EstNoise_before_cnn%d.dat" %
-                                             (top_config.N_code, top_config.K_code, self.currently_trained_net_id))
-        self.training_label_file = format("./TrainingData/%s_%s/RealNoise.dat" %
-                                          (top_config.N_code, top_config.K_code))
+        self.training_feature_folder = format("./TrainingData/%s_%s/" % (top_config.N_code, top_config.K_code))
+        self.training_feature_file = format("EstNoise_before_cnn%d.dat" % (self.currently_trained_net_id))
+        self.training_label_folder = format("./TrainingData/%s_%s/" % (top_config.N_code, top_config.K_code))
+        self.training_label_file = format("RealNoise.dat")
 
         # test data information
-        self.test_sample_num = 42000  # 原来是 105000 # it should be a multiple of test_minibatch_size
-        self.test_minibatch_size = 1400  # 原来是 3500，为了配合训练BP，改成和上面training_minibatch_size一样的 1400
-        self.test_feature_file = format("./TestData/%s_%s/EstNoise_before_cnn%d.dat" %
-                                        (top_config.N_code, top_config.K_code, self.currently_trained_net_id))
-        self.test_label_file = format("./TestData/%s_%s/RealNoise.dat" %
-                                      (top_config.N_code, top_config.K_code))
+        self.test_sample_num = 42000 // top_config.SNR_set_origin_size * np.size(top_config.SNR_set_gen_data) # 原来是 105000 # it should be a multiple of test_minibatch_size
+        self.test_minibatch_size = 2800 // top_config.SNR_set_origin_size * np.size(top_config.SNR_set_gen_data)
+        # 原来是 3500，为了配合训练BP，改成和上面training_minibatch_size一样的 1400
+        self.test_feature_folder = format("./TestData/%s_%s/" % (top_config.N_code, top_config.K_code))
+        self.test_feature_file = format("EstNoise_before_cnn%d.dat" % (self.currently_trained_net_id))
+        self.test_label_folder = format("./TestData/%s_%s/" % (top_config.N_code, top_config.K_code))
+        self.test_label_file = format("RealNoise.dat")
 
         # normality test
         self.normality_test_enabled = top_config.normality_test_enabled

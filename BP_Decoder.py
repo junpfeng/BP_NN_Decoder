@@ -86,11 +86,24 @@ class GetMatrixForBPNet:
 
 
 class BP_NetDecoder:
-    def __init__(self, H, batch_size):  # 校验矩阵，外部传入
+    def __init__(self, H, batch_size, top_config, BP_layers=20, placement=0):  # 校验矩阵，外部传入
 
-        self.train_bp_network = True
-        self.use_train_bp_net = True
-        self.use_cnn_res_noise = False
+        if top_config.function == 'GenData':
+            self.train_bp_network = False
+            self.use_train_bp_net = False  # True
+            self.use_cnn_res_noise = False
+        elif top_config.function == 'TrainBP':
+            self.train_bp_network = True
+            self.use_train_bp_net = False  # True
+            self.use_cnn_res_noise = False
+        elif top_config.function == 'Simulation':
+            self.train_bp_network = False
+            self.use_train_bp_net = True  # True
+            self.use_cnn_res_noise = True
+        else:
+            self.train_bp_network = False
+            self.use_train_bp_net = False  # True
+            self.use_cnn_res_noise = True
         # 设置tf 初始化的模式
         self.initializer = tf.truncated_normal_initializer(mean=1, stddev=0.1)
         _, self.v_node_num = np.shape(H)  #  获取变量节点长度（即码元的长度 576）
@@ -111,7 +124,7 @@ class BP_NetDecoder:
         self.V_to_C_params = {}
         self.C_to_V_params = {}
         self.C_to_V_params_img = {}
-        self.BP_layers = 10
+        self.BP_layers = BP_layers
         self.xe_v_sumc = {}
 
         # ---------- 构建稀疏转换 -------------
@@ -144,7 +157,7 @@ class BP_NetDecoder:
                                                         , dense_shape=self.H_sumV_to_C.shape)
 
         # --------------------不带训练参数的BP译码网络------------------
-        if not self.train_bp_network:
+        if 1 == placement or ((not self.train_bp_network) and (not self.use_train_bp_net)):
             self.llr_into_bp_net, self.xe_0, self.xe_v2c_pre_iter_assign, self.start_next_iteration, self.dec_out, self.sigmoid_out = self.build_network()
             self.llr_assign = self.llr_into_bp_net.assign(tf.transpose(self.llr_placeholder))
             init = tf.global_variables_initializer()
@@ -176,15 +189,19 @@ class BP_NetDecoder:
         self.sess.run(init)
 
         # 恢复已经训练过的 bp_net 参数
-        self.bp_net_save_dir = format("model/bp_model/%s_%s/" % (top_config.N_code, top_config.K_code))
-        self.bp_model = "bp_model.ckpt_10000"
+        if placement == 0:
+            self.bp_net_save_dir = format("model/bp_model/%s_%s/BP%s/before_cnn/" % (top_config.N_code, top_config.K_code, self.BP_layers))
+        else:
+            self.bp_net_save_dir = format("model/bp_model/%s_%s/BP%s/after_cnn/" % (top_config.N_code, top_config.K_code, self.BP_layers))
+        self.bp_model = format("bp_model_BP%s.ckpt_10000" % self.BP_layers)
         # 如果已经训练过了，并且需要训练，就先加载之前的参数
         if self.use_train_bp_net and os.path.isfile(self.bp_net_save_dir + self.bp_model + ".meta"):
             saver = tf.train.Saver()
             saver.restore(self.sess, self.bp_net_save_dir + self.bp_model)
 
     def __del__(self):
-        self.sess.close()
+        if self.train_bp_network or self.use_train_bp_net:
+            self.sess.close()
         print('Close a tf session!')
 
 

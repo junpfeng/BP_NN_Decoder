@@ -27,9 +27,17 @@ BP_iter_num = 30
 # list_BP_iter_num = [10, 20, 40, 50, 60] #
 # list_BP_iter_num = [5, 10, 20, 40]
 # list_BP_iter_num = [40, 50, 51]
-list_BP_iter_num = [25, 50]
+# list_BP_iter_num = [20, 50, 21]  # BPDNN20, LLRBP50, LLRBP20
+# list_BP_iter_num = [20, 50, 21]  # BPDNN20, LLRBP50, advance_BPDNN
+list_BP_iter_num = [10]
+# list_BP_iter_num = [20, 50, 22, 51]  # BPDNN(10)-CNN-BPDNN(10)，BP(25)-CNN-BP(25), LLRBP50
+# 20: BPDNN20
+# 21: LLRBP20
+# 22：BPDNN10-CNN-BPDNN10/advance_BPDNN
+# 50: LLRBP50
+# 51：BP(25)-CNN-BP(25)
 # 线条配合形状，构建6种不同图例
-list_marker = ["o", "", "", "", "o", "."]
+list_marker = ["*", "", "", "", "o", "."]
 list_line_style = ['-', '--', '-.', ':', '-', '-']
 
 for i in range(len(list_BP_iter_num)):
@@ -45,9 +53,20 @@ for i in range(len(list_BP_iter_num)):
     x = plot_data[:, 0]
     y = plot_data[:, 1]
     if 0 == i:
-        label = format("BPDNN(%s,%s)iter=%s" % (N, K, BP_iter_num))
+        # label = format("BPDNN(%s,%s)iter=%s" % (N, K, BP_iter_num))
+        label = format("(%s,%s)BPDNN(%s)" % (N, K, BP_iter_num))
+    elif 1 == i:
+        # label = format("advance_BPDNN(%s,%s)iter=%s" % (N, K, BP_iter_num + 20))
+        label = format("(%s,%s)LLRBP(%s)" % (N, K, BP_iter_num))
     else:
-        label = format("LLRBP(%s,%s)iter=%s" % (N, K, BP_iter_num))
+        label = format("(%s,%s)LLRBP(%s)" % (N, K, BP_iter_num - 1))
+    # elif 2 == i:
+    #     # label = format("advance_BPDNN(%s,%s)iter=%s" % (N, K, BP_iter_num - 2))
+    #     label = format("(%s,%s)BPDNN(%s)_CNN_BPDNN(%s)"
+    #                    % (N, K, BP_iter_num // 2 - 1, BP_iter_num // 2 - 1))
+    # else:
+    #     label = format("(%s,%s)BP(%s)_CNN_BP(%s)" % (N, K, BP_iter_num // 2, BP_iter_num // 2))
+
     plt.semilogy(x, y, label=label, marker=marker, linestyle=linestyle)
 
 plt.grid(True, which="both", ls="-")

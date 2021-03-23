@@ -232,7 +232,7 @@ class ConvNet:
             batch_xs, batch_ys = dataio.load_next_mini_batch(self.train_config.training_minibatch_size)  # self.train_config.training_minibatch_size=1400
             sess.run([train_step], feed_dict={x_in: batch_xs, y_label: batch_ys})
             # **********************************  ？？？ ****************************
-            if epoch % 500 == 0 or epoch == self.train_config.epoch_num:
+            if epoch % 1000 == 0 or epoch == self.train_config.epoch_num:
                 print(epoch)
                 ave_loss_after_train, _ = self.test_network_online(dataio_test, x_in, y_label, orig_loss_for_test, test_loss, False, sess)
                 if ave_loss_after_train < min_loss:

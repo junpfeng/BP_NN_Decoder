@@ -14,16 +14,16 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.function = 'Train'
 
         # code 码的信息
-        # self.N_code = 576
-        # self.K_code = 432
+        self.N_code = 576
+        self.K_code = 432
         # self.N_code = 576
         # self.K_code = 480
         # self.N_code = 240
         # self.K_code = 120
         # self.N_code = 6
         # self.K_code = 3
-        self.N_code = 16
-        self.K_code = 8
+        # self.N_code = 16
+        # self.K_code = 8
         # self.N_code = 96
         # self.K_code = 48
         # self.K_code = 45
@@ -52,7 +52,7 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
         self.currently_trained_net_id = 0  # denote the cnn denoiser which is in training currently
 
         # 表示整个网络有多少个小的独立BP网络拼接而成 0表示1个，1表示2个
-        self.cnn_net_number = 1  # 1  # 当需要使用cnn时，设为1 ，the number of cnn denoisers in final simulation
+        self.cnn_net_number = 0  # 1  # 当需要使用cnn时，设为1 ，the number of cnn denoisers in final simulation
 
         self.layer_num = 4  # the number of cnn layers
         self.filter_sizes = np.array([9, 3, 3, 15])  # the convolutional filter size. The length of this list should be equal to the layer number
@@ -70,11 +70,12 @@ class TopConfig:  # 也就是 生成数据、训练和仿真的 参数和配置�
             self.eval_SNRs = np.array([0, 0.5, 1, 1.5, 2, 2.5, 3], np.float32)
             # 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6,
             # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13
-            # self.SNR_set_gen_data = np.array([10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]
+            # self.SNR_set_gen_data = np.array([1,2,3,4,5,6,7,8,9,10]
             #                                   # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13,
             #                                   # 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19, 19.5, 20]
             #                                 , dtype=np.float32)  # 这个修改和 eval_SNRs 是匹配的
-            # self.eval_SNRs = np.array([10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]
+            # self.eval_SNRs = np.array([1,2,3,4,5,6,7,8,9,10]
+                                      # [10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]
             #                            # 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13,
             #                            # 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19, 19.5, 20]
             #                           , np.float32)
@@ -196,7 +197,7 @@ class NetConfig:
 
         self.model_folder = "./model"
         self.residual_noise_property_folder = self.model_folder
-        self.use_conv_net = True # True
+        self.use_conv_net = False  # True
 
 
 class TrainingConfig:

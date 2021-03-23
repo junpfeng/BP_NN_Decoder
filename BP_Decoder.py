@@ -99,7 +99,7 @@ class BP_NetDecoder:
         elif top_config.function == 'Simulation':
             self.train_bp_network = False
             self.use_train_bp_net = True  # True
-            self.use_cnn_res_noise = True
+            self.use_cnn_res_noise = False
         else:
             self.train_bp_network = False
             self.use_train_bp_net = False  # True
@@ -179,6 +179,7 @@ class BP_NetDecoder:
 
         # self.cross_entropy = -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out), 1)  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
         self.cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.labels, logits=self.logits, name="cross_entroy")  # * 是按元素相乘，u_coded_bits=(5000,6);sigmoid_out=(6,5000)
+        self.cross_entropy = tf.reduce_sum(self.cross_entropy)
         self.train_step = tf.train.AdamOptimizer(1e-5).minimize(self.cross_entropy)
 
         self.sess = tf.Session(graph=tf.get_default_graph())  # open a session
@@ -391,7 +392,9 @@ class BP_NetDecoder:
         # 尝试保存网络
         saver = tf.train.Saver(max_to_keep=20)
         G_matrix = linear_code.G_matrix  # 用于产生 u_coded_bits 样本的生成矩阵
-
+        LLR = []
+        z = 0
+        u_coded_bits = []
         for i in range(500):  # 每一种SNR的训练轮数，原来是 20000
             for SNR in SNRset:
                 real_batch_size = batch_size
@@ -406,12 +409,15 @@ class BP_NetDecoder:
                 # x3 = self.sess.run(self.xe_v_sumc)
                 # self.sess.run()  # 重新修改网络的输入为 llr_in
                 # p = self.sess.run(self.cross_entropy, feed_dict={self.labels: u_coded_bits})
-                z = self.sess.run([self.llr_assign, self.train_step], feed_dict={self.llr_placeholder: LLR, self.labels: u_coded_bits})
+                self.sess.run([self.llr_assign, self.train_step], feed_dict={self.llr_placeholder: LLR, self.labels: u_coded_bits})
+
                 # y = self.sess.run(self.llr_into_bp_net)
                 # x,y = self.sess.run([])
                 # -tf.reduce_sum(self.llr_into_bp_net * tf.log(self.sigmoid_out))
                 # x1 = self.sess.run(tf.log(self.sigmoid_out))
                 pass
+            # if 0 == (i % 100):
+            #     print(z)
             # if 0 == i % 5000 and 0 != i:
             #     saver.save(self.sess, self.bp_net_save_dir + self.bp_model + format("_%d" % i))
             #     print("this num %d epo" % i)

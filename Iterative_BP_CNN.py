@@ -78,9 +78,9 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
     if np.size(bp_iter_num) != denoising_net_num + 1:
         print('Error: the length of bp_iter_num is not correct!')
         exit(0)
-    bp_decoder_before_cnn = BP_Decoder.BP_NetDecoder(H_matrix, batch_size, top_config, BP_layers, 0)
+    bp_decoder = BP_Decoder.BP_NetDecoder(H_matrix, batch_size, top_config, BP_layers, 0)
     bp_decoder_after_cnn = BP_Decoder.BP_NetDecoder(H_matrix, batch_size, top_config, BP_layers, 1)
-    bp_decoder = bp_decoder_before_cnn  # default
+    # bp_decoder = bp_decoder_before_cnn  # default
 
     res_N = top_config.N_code
     res_K = top_config.K_code
@@ -186,10 +186,10 @@ def simulation_colored_noise(linear_code, top_config, net_config, simutimes_rang
                 print('Practical EbN0: %.2f' % practical_snr)
 
             for iter in range(0, denoising_net_num + 1):   # denoising_net_num == 1
-                if 0 == iter:
-                    bp_decoder = bp_decoder_before_cnn
-                else:
-                    bp_decoder = bp_decoder_after_cnn
+                # if 0 == iter:
+                #     bp_decoder = bp_decoder_before_cnn
+                # else:
+                #     bp_decoder = bp_decoder_after_cnn
                 # BP decoding，第二个参数bp_iter_num 失效的，因为迭代次数是由前面的变量 BP_layers 决定的
                 u_BP_decoded = bp_decoder.decode(LLR.astype(np.float32), bp_iter_num[iter])  # BP译码传输的本来是LLR，返回的则是对应译码的码字
                 # ！！！当iter==0，误比特率记录的是BP的误比特率，当iter==1，记录的是BP-CNN-BP的误比特率。
